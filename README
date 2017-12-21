@@ -1,0 +1,105 @@
+ELM0: Errors, Logging, Malloc and Testing in about 1000 lines of C.
+-------------------------------------------------------------------
+
+Author     : Adrian Ratnapala
+Get Source : git clone git://github.com/adrianratnapala/elm0.git
+More info  : https://github.com/adrianratnapala/elm0
+
+Copyright (C) 2012, Adrian Ratnapala, under the ISC license. See file LICENSE.
+
+
+ELM0 is a pair of very small tool-kits, called ELM and 0unit, for programming
+in C.  They do in one place some essential tasks required by all programs.
+
+0unit is a helper for unit testing. Being tiny, it can not be a true testing
+framework; but it still makes it easy to write useful tests.  See the example
+file 0example.c for documentation.
+
+ELM is documented in elm.h; it is responsible for:
+
+- Error Handling (including, but not requiring, exceptions)
+        There is an extensible data-type called Error.  Errors can be thrown up
+        the stack using longjmp based exceptions called panics.  Uncaught
+        panics provide user-readable error messages, not stack traces.
+
+- Logging
+        Printf-like functions can send messages to configurable loggers which
+        can be switched off or redirected.  There is built-in support for
+        logging Error objects.
+
+- Malloc Wrapping
+        Very few programs try to recover from a failed malloc(), but they have
+        to check for it anyway.  ELM's wrappers call malloc for you, and let
+        you fail gracefully when the result is NULL.  The wrappers themselves
+        never return NULL.
+
+ELM and 0unit work well together, but do not have to be used together.  They
+also do not have external dependencies (beyond the compilation tools, the OS
+and libc).  Both parts emphasise reliability, ease of use and smallness; you
+can throw them into any old program without introducing bloat or complexity.
+elm.a is a < 10 KiB static library and 0unit is a single header file.
+
+Detailed documentation is in example.c and elm.h; the rest of this document is
+about how install ELM0, how to compile against it and about ELM0's
+requirements and limitations
+
+
+How to install ELM0
+-------------------
+
+ELM0 can be built and installed using:
+
+        INSTALL_DIR=/where-i-want-it    make clean install
+
+'make install' populates the directory '$(INSTALL_DIR)/include' and
+'$(INSTALL_DIR)/lib' with files needed for using ELM0.  Files not needed in
+final use will be generated in $(BUILD_DIR).
+
+The unit tests can be run using:
+
+        make clean test
+
+Because ELM0 is supposed to be bundled, $(INSTALL_DIR) does not default to any
+system-wide root.  Instead, it defaults to $(BUILD_DIR), which in turn defaults
+to '.'; that is ELM0's own source directory.  You probably want to override
+this when you integrate ELM0 into your own project.  For example you can
+invoke
+
+        BUILD_DIR=my_very_own_builddir/ INSTALL_DIR=static_libs/ make -C elm0/
+
+
+How compile against ELM0
+------------------------
+
+The exact build flags (-I, -L) you use will depend on where you choose to
+install elm0.  Once this is settled,
+
+- Use 0unit by simply including "0unit.h".  The whole thing is in the header
+  file, no linking is needed.
+
+- Use elm by including "elm.h" and link with "-lelm" (i.e. link against "libelm.a")
+
+
+
+Requirements and Limitations
+----------------------------
+
+This version of 0unit has been tested under Linux using GCC version 4.7.0.  It
+certainly requires at least C99.  It also uses some glibc features which exist
+on *BSD, but are not standard in C99 or POSIX.  None of these limits is
+fundamental; portability will improve when ELM0 is used and tested on more
+platforms.  If you want to try a new platform, then create an issue at
+
+        https://github.com/adrianratnapala/elm0/issues.
+
+To run the unit tests you also need Valgrind and Python 3.
+
+Currently, elm0 has one big limitation: the panic-catching is not thread safe.
+This will be fixed when when ELM0 is used by an application that needs to do
+better.  If you want to use ELM0 for such an application, then make your point
+heard at:
+
+- https://github.com/adrianratnapala/elm0/issues/1
+        panic-catching is not thread safe.
+
+
