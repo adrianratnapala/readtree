@@ -596,6 +596,9 @@ static void death_panic(Error *e)
 
         log_error( &panic_log, e);
 
+        const char *on_panic = getenv("ELM_ON_PANIC");
+        if(on_panic && !strcmp("abort", on_panic))
+                abort();
         exit(e->type == nomem_error_type ? ENOMEM : sys_error(e, NULL, NULL));
 }
 
