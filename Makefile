@@ -1,5 +1,5 @@
 B=b
-CFLAGS=-std=c99 -Wall -Werror
+CFLAGS=-std=c99 -Wall -Werror -g -O0
 LDFLAGS=-L $(B)
 LDLIBS=-lelm
 
