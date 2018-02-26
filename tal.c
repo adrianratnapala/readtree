@@ -3,6 +3,7 @@
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -11,9 +12,31 @@
 #include <sys/types.h>
 
 #include "elm0/elm.h"
+#include "elm0/0unit.h"
 
 #define MAX_LINE_LENGTH 80
 
+
+typedef struct SrcTree {
+        char *root;
+} SrcTree;
+
+SrcTree *walk_source_tree(const char *root, Error **err)
+{
+        struct SrcTree *stree = MALLOC(sizeof(SrcTree));
+        *stree = (SrcTree) {
+                .root = strdup(root),
+        };
+        return stree;
+}
+
+Error *destroy_src_tree(SrcTree *stree)
+{
+        assert(stree && stree->root);
+        free(stree->root);
+        free(stree);
+        return NULL;
+}
 
 typedef const struct TestFile {
         const char *name;
@@ -179,8 +202,35 @@ TestFile *make_test_dir_tree()
         return tf0;
 }
 
+static TestFile *chk_prefix_walk(TestFile *tf, SrcTree *stree) {
+        CHK(!tf->content);
+        CHK(!strcmp(tf->name, stree->root));
+        while(tf->name)
+                tf++;
+        return tf;
+fail:
+        return NULL;
+}
+
+static int test_dir_tree()
+{
+        TestFile *tf = make_test_dir_tree();
+
+        Error *err = NULL;
+        SrcTree *stree = walk_source_tree("test_dir_tree", &err);
+        CHK(!err);
+
+        CHK(tf = chk_prefix_walk(tf, stree));
+        CHK(tf->name == NULL);
+
+        destroy_src_tree(stree);
+
+        PASS();
+}
+
 int main(void)
 {
-        make_test_dir_tree();
+        test_dir_tree();
+        return zunit_report();
 }
 
