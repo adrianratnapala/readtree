@@ -21,13 +21,16 @@ typedef struct SrcTree {
         char *root;
 } SrcTree;
 
-SrcTree *walk_source_tree(const char *root, Error **err)
+Error *walk_source_tree(const char *root, SrcTree **pstree)
 {
+        assert(pstree);
         struct SrcTree *stree = MALLOC(sizeof(SrcTree));
         *stree = (SrcTree) {
                 .root = strdup(root),
         };
-        return stree;
+
+        *pstree = stree;
+        return NULL;
 }
 
 Error *destroy_src_tree(SrcTree *stree)
@@ -216,9 +219,8 @@ static int test_dir_tree()
 {
         TestFile *tf = make_test_dir_tree();
 
-        Error *err = NULL;
-        SrcTree *stree = walk_source_tree("test_dir_tree", &err);
-        CHK(!err);
+        SrcTree *stree;
+        CHK(!walk_source_tree("test_dir_tree", &stree));
 
         CHK(tf = chk_prefix_walk(tf, stree));
         CHK(tf->name == NULL);
