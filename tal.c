@@ -1,6 +1,9 @@
 #define _GNU_SOURCE
 #include <assert.h>
+#include <dirent.h>
 #include <errno.h>
+#include <fcntl.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -14,32 +17,219 @@
 #include "elm0/elm.h"
 #include "elm0/0unit.h"
 
-#define MAX_LINE_LENGTH 80
+#define CHK_STR_EQ(A, B)\
+        CHKV((A) && (B) && !strcmp((A),(B)), \
+                "("#A")'%s' != ("#B")'%s'", (A), (B))
 
+#define MIN_READ 1
 
 typedef struct SrcTree {
-        char *root;
+        char *path;
+
+        unsigned size;
+        char *content;
+
+        unsigned nsub;
+        struct SrcTree *sub;
 } SrcTree;
+
+static SrcTree *walk_tree_(const char *root, unsigned *pnsub, Error **perr);
+
+static char *read_file_(const char *path, unsigned *psize, Error **perr)
+{
+        errno = 0;
+        size_t used = 0, block_size = MIN_READ + 1;
+        char *block = NULL;
+        int fd = open(path, O_RDONLY);
+        if(fd < 0) {
+                *perr = IO_ERROR(path, errno, "Opening source file");
+                return NULL;
+        }
+
+        block = malloc(block_size);
+        for(;;) {
+                if(!block) {
+                        close(fd);
+                        PANIC_NOMEM();
+                }
+
+                assert(block_size - used > 1);
+                ssize_t n = read(fd, block + used, block_size - used - 1);
+                if(n < 0) {
+                        *perr = IO_ERROR(path, errno, "Reading source file");
+                        goto error;
+                }
+                //LOG_F(dbg_log, "Read %ld bytes from %s", n, path);
+                if(n == 0) {
+                        goto eof;
+                }
+
+                used += n;
+                if(block_size - used >= (1 + MIN_READ)) {
+                        continue;
+                }
+
+                if((block_size *= 2) > UINT_MAX) {
+                        *perr = IO_ERROR(path, EINVAL, "Reading too big a source file");
+                        goto error;
+                }
+
+                block = realloc(block, block_size *= 2);
+        };
+
+eof:
+        block = realloc(block, used + 1);
+        block[used] = 0;
+        do close(fd); while(errno == EINTR);
+        if(errno) {
+                *perr = IO_ERROR(path, errno, "Closing source file");
+                free(block);
+                return NULL;
+        }
+        *psize = used;
+        LOG_F(dbg_log, "Successfully read file %s (%u bytes).", path, *psize);
+        return block;
+
+error:
+        assert(fd >= 0);
+        do close(fd); while(errno == EINTR);
+        free(block);
+        return NULL;
+}
+
+static Error *from_dirent_(
+        const char *root,
+        SrcTree *pret,
+        const struct dirent *de)
+{
+        assert(de);
+        assert(pret);
+        assert(root);
+        const char *name = de->d_name;
+        if(!name)
+                PANIC("NULL name from scandir of %s!", root);
+
+        SrcTree r = {0};
+
+        if(0 > asprintf(&r.path, "%s/%s", root, name))
+                PANIC_NOMEM();
+        Error *err = NULL;
+
+        switch(de->d_type) {
+        case DT_DIR:
+                r.sub = walk_tree_(r.path, &r.nsub, &err);
+                break;
+        case DT_REG:
+                r.content = read_file_(r.path, &r.size, &err);
+                break;
+        default:
+                return IO_ERROR(r.path, EINVAL,
+                "Dirwalking something that is neither a file nor directory.");
+        }
+
+        if(err)
+                return err;
+        *pret = r;
+        return NULL;
+}
+
+static void destroy_tree_(SrcTree t)
+{
+        free(t.path);
+        free(t.content);
+        for(unsigned k; k < t.nsub; k++) {
+                destroy_tree_(t.sub[k]);
+        }
+        free(t.sub);
+}
+
+static int filter(const struct dirent *de)
+{
+        const char *name = de->d_name;
+        if(!name)
+                PANIC("scandir called filter with NULL name!");
+        return *name != '.';
+}
+
+static SrcTree *walk_tree_(const char *root, unsigned *pnsub, Error **perr)
+{
+        // FIX: write our own, deterministic alternative to alphasort.
+        struct dirent **direntv;
+        int n = scandir(root, &direntv, filter, alphasort);
+        if(n < 0) {
+                *perr = IO_ERROR(root, errno, "walking directory");
+                return NULL;
+        }
+        assert(direntv || !n);
+        struct SrcTree *subv = MALLOC(sizeof(SrcTree)*n);
+
+        Error *err = NULL;
+        int nconverted;
+        for(nconverted = 0; nconverted < n; nconverted++) {
+                err = from_dirent_(root, subv+nconverted, direntv[nconverted]);
+                if(err)
+                        break;
+        }
+
+        // Clear up the dirent whether or not there was an error.
+        for(int k = 0; k < n; k++) {
+                free(direntv[k]);
+        }
+        free(direntv);
+
+        // Happy path: just return the subv.
+        assert(n >= 0);
+        if(!err) {
+                *pnsub = (unsigned)n;
+                return subv;
+        }
+
+        // Sad path: clean up whatever trees were already converted.
+        for(int k = 0; k < nconverted; k++) {
+                destroy_tree_(subv[k]);
+        }
+        free(subv);
+
+        *perr = err;
+        return NULL;
+}
+
+void destroy_src_tree(SrcTree *stree)
+{
+        if(!stree)
+                return;
+        destroy_tree_(*stree);
+        free(stree);
+}
 
 Error *walk_source_tree(const char *root, SrcTree **pstree)
 {
+        // FIX: reduce the boilerplate.
+        if(!root)
+                PANIC("'root' is null");
+        if(!pstree)
+                PANIC("'pstree' is null");
+        assert(root);
         assert(pstree);
-        struct SrcTree *stree = MALLOC(sizeof(SrcTree));
-        *stree = (SrcTree) {
-                .root = strdup(root),
-        };
-
+        SrcTree t = {.path = strdup(root)};
+        if(!t.path) {
+                PANIC_NOMEM();
+        }
+        Error *err = NULL;
+        t.sub = walk_tree_(root, &t.nsub, &err);
+        if(err) {
+                return err;
+        }
+        SrcTree *stree = malloc(sizeof(SrcTree));
+        if(!stree) {
+                destroy_tree_(t);
+                PANIC_NOMEM();
+        }
+        *stree = t;
         *pstree = stree;
         return NULL;
 }
 
-Error *destroy_src_tree(SrcTree *stree)
-{
-        assert(stree && stree->root);
-        free(stree->root);
-        free(stree);
-        return NULL;
-}
 
 typedef const struct TestFile {
         const char *name;
@@ -51,10 +241,10 @@ typedef const struct TestFile {
 static TestFile test_dir_tree_[] = {
         {"test_dir_tree", NULL},
         {"test_dir_tree/dir0", NULL},
-        {"test_dir_tree/dir0/file0", "content of file 0.0"},
-        {"test_dir_tree/dir0/file1", "content of file 0.1"},
         {"test_dir_tree/dir0/dir01", NULL},
         {"test_dir_tree/dir0/dir01/deeper_file", "content file 0.0.0"},
+        {"test_dir_tree/dir0/file0", "content of file 0.0"},
+        {"test_dir_tree/dir0/file1", "content of file 0.1"},
         {"test_dir_tree/emptydir", NULL},
         {"test_dir_tree/file0", "content of file 0"},
         {"test_dir_tree/file1", "content of file 1"},
@@ -62,7 +252,7 @@ static TestFile test_dir_tree_[] = {
         {"test_dir_tree/later_dir/file0", "content of later file 0"},
         {"test_dir_tree/later_dir/file1", "content of later file 1"},
         {"test_dir_tree/later_dir/file3", "content of later file 3"},
-        {"test_dir_tree/big",
+        {"test_dir_tree/more_bigger",
                         "This file is slightly bigger than\n"
                         "the others, but still not very big.\n"
 
@@ -205,14 +395,33 @@ TestFile *make_test_dir_tree()
         return tf0;
 }
 
-static TestFile *chk_prefix_walk(TestFile *tf, SrcTree *stree) {
-        CHK(!tf->content);
-        CHK(!strcmp(tf->name, stree->root));
-        while(tf->name)
-                tf++;
+static TestFile *chk_tree_equal(TestFile *tf, SrcTree *stree) {
+        CHK(tf->name);
+        CHK(stree->path);
+        CHK_STR_EQ(tf->name, stree->path);
+        if(tf->content) {
+                CHK_STR_EQ(tf->content, stree->content);
+        } else {
+                CHK(!stree->content);
+        }
+
+        ++tf;
+
+        SrcTree *sub0 = stree->sub, *subE = sub0 + stree->nsub;
+        for(SrcTree *src = sub0; src < subE; src++) {
+                CHK(tf = chk_tree_equal(tf, src));
+        }
+
         return tf;
 fail:
         return NULL;
+}
+
+static int noerror(Error *err) {
+        if(!err)
+                return 1;
+        log_error(dbg_log, err);
+        return 0;
 }
 
 static int test_dir_tree()
@@ -220,10 +429,11 @@ static int test_dir_tree()
         TestFile *tf = make_test_dir_tree();
 
         SrcTree *stree;
-        CHK(!walk_source_tree("test_dir_tree", &stree));
+        CHK(noerror(walk_source_tree("test_dir_tree", &stree)));
 
-        CHK(tf = chk_prefix_walk(tf, stree));
-        CHK(tf->name == NULL);
+        CHK(tf = chk_tree_equal(tf, stree));
+        CHKV(tf->name == NULL, "Expected files/dirs missing from tree walk: "
+                         "%s, ...", tf->name);
 
         destroy_src_tree(stree);
 
