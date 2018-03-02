@@ -119,6 +119,7 @@ static Error *from_dirent_(
         case DT_DIR:
                 r.sub = walk_tree_(r.path, &r.nsub, &err);
                 break;
+        case DT_LNK:
         case DT_REG:
                 r.content = read_file_(r.path, &r.size, &err);
                 break;
@@ -234,9 +235,78 @@ Error *walk_source_tree(const char *root, SrcTree **pstree)
 typedef const struct TestFile {
         const char *name;
         const char *content;
+        const char *symlink;
 } TestFile;
 
+static const char more_bigger_text[] =
+        "This file is slightly bigger than\n"
+        "the others, but still not very big.\n"
 
+        "But still not very big.\n"
+        "But still not very bug.\n"
+        "But still not very bog.\n"
+        "But still not very bag.\n"
+        "But still not very beg.\n"
+        "Bit still not very big.\n"
+        "Bit still not very bug.\n"
+        "Bit still not very bog.\n"
+        "Bit still not very bag.\n"
+        "Bit still not very beg.\n"
+        "Bet still not very big.\n"
+        "Bet still not very bug.\n"
+        "Bet still not very bog.\n"
+        "Bet still not very bag.\n"
+        "Bet still not very beg.\n"
+        "Bat still not very big.\n"
+        "Bat still not very bug.\n"
+        "Bat still not very bog.\n"
+        "Bat still not very bag.\n"
+        "Bat still not very beg.\n"
+
+        "But still net very big.\n"
+        "But still net very bug.\n"
+        "But still net very bog.\n"
+        "But still net very bag.\n"
+        "But still net very beg.\n"
+        "Bit still net very big.\n"
+        "Bit still net very bug.\n"
+        "Bit still net very bog.\n"
+        "Bit still net very bag.\n"
+        "Bit still net very beg.\n"
+        "Bet still net very big.\n"
+        "Bet still net very bug.\n"
+        "Bet still net very bog.\n"
+        "Bet still net very bag.\n"
+        "Bet still net very beg.\n"
+        "Bat still net very big.\n"
+        "Bat still net very bug.\n"
+        "Bat still net very bog.\n"
+        "Bat still net very bag.\n"
+        "Bat still net very beg.\n"
+
+        "But still nit very big.\n"
+        "But still nit very bug.\n"
+        "But still nit very bog.\n"
+        "But still nit very bag.\n"
+        "But still nit very beg.\n"
+        "Bit still nit very big.\n"
+        "Bit still nit very bug.\n"
+        "Bit still nit very bog.\n"
+        "Bit still nit very bag.\n"
+        "Bit still nit very beg.\n"
+        "Bet still nit very big.\n"
+        "Bet still nit very bug.\n"
+        "Bet still nit very bog.\n"
+        "Bet still nit very bag.\n"
+        "Bet still nit very beg.\n"
+        "Bat still nit very big.\n"
+        "Bat still nit very bug.\n"
+        "Bat still nit very bog.\n"
+        "Bat still nit very bag.\n"
+        "Bat still nit very beg.\n"
+        ;
+
+// FIX: test empty files
 // All directories should be sorted, in naive byte-for-byte order.
 static TestFile test_dir_tree_[] = {
         {"test_dir_tree", NULL},
@@ -245,6 +315,7 @@ static TestFile test_dir_tree_[] = {
         {"test_dir_tree/dir0/dir01/deeper_file", "content file 0.0.0"},
         {"test_dir_tree/dir0/file0", "content of file 0.0"},
         {"test_dir_tree/dir0/file1", "content of file 0.1"},
+        {"test_dir_tree/dir0/link", more_bigger_text, "../more_bigger"},
         {"test_dir_tree/emptydir", NULL},
         {"test_dir_tree/file0", "content of file 0"},
         {"test_dir_tree/file1", "content of file 1"},
@@ -252,75 +323,57 @@ static TestFile test_dir_tree_[] = {
         {"test_dir_tree/later_dir/file0", "content of later file 0"},
         {"test_dir_tree/later_dir/file1", "content of later file 1"},
         {"test_dir_tree/later_dir/file3", "content of later file 3"},
-        {"test_dir_tree/more_bigger",
-                        "This file is slightly bigger than\n"
-                        "the others, but still not very big.\n"
-
-                        "But still not very big.\n"
-                        "But still not very bug.\n"
-                        "But still not very bog.\n"
-                        "But still not very bag.\n"
-                        "But still not very beg.\n"
-                        "Bit still not very big.\n"
-                        "Bit still not very bug.\n"
-                        "Bit still not very bog.\n"
-                        "Bit still not very bag.\n"
-                        "Bit still not very beg.\n"
-                        "Bet still not very big.\n"
-                        "Bet still not very bug.\n"
-                        "Bet still not very bog.\n"
-                        "Bet still not very bag.\n"
-                        "Bet still not very beg.\n"
-                        "Bat still not very big.\n"
-                        "Bat still not very bug.\n"
-                        "Bat still not very bog.\n"
-                        "Bat still not very bag.\n"
-                        "Bat still not very beg.\n"
-
-                        "But still net very big.\n"
-                        "But still net very bug.\n"
-                        "But still net very bog.\n"
-                        "But still net very bag.\n"
-                        "But still net very beg.\n"
-                        "Bit still net very big.\n"
-                        "Bit still net very bug.\n"
-                        "Bit still net very bog.\n"
-                        "Bit still net very bag.\n"
-                        "Bit still net very beg.\n"
-                        "Bet still net very big.\n"
-                        "Bet still net very bug.\n"
-                        "Bet still net very bog.\n"
-                        "Bet still net very bag.\n"
-                        "Bet still net very beg.\n"
-                        "Bat still net very big.\n"
-                        "Bat still net very bug.\n"
-                        "Bat still net very bog.\n"
-                        "Bat still net very bag.\n"
-                        "Bat still net very beg.\n"
-
-                        "But still nit very big.\n"
-                        "But still nit very bug.\n"
-                        "But still nit very bog.\n"
-                        "But still nit very bag.\n"
-                        "But still nit very beg.\n"
-                        "Bit still nit very big.\n"
-                        "Bit still nit very bug.\n"
-                        "Bit still nit very bog.\n"
-                        "Bit still nit very bag.\n"
-                        "Bit still nit very beg.\n"
-                        "Bet still nit very big.\n"
-                        "Bet still nit very bug.\n"
-                        "Bet still nit very bog.\n"
-                        "Bet still nit very bag.\n"
-                        "Bet still nit very beg.\n"
-                        "Bat still nit very big.\n"
-                        "Bat still nit very bug.\n"
-                        "Bat still nit very bog.\n"
-                        "Bat still nit very bag.\n"
-                        "Bat still nit very beg.\n"
-        },
+        {"test_dir_tree/more_bigger", more_bigger_text},
         {0},
 };
+
+static Error *make_test_symlink_(TestFile *tf)
+{
+        const int max_symlink_len = 200;
+        const char *tgt, *src;
+        assert(tf);
+        assert((src = tf->name));
+        assert((tgt = tf->symlink));
+        LOG_F(dbg_log, "Making test-tgt symlink %s -> %s", src, tgt);
+
+        int tgt_len = strnlen(tgt, max_symlink_len + 2);
+        if(tgt_len > max_symlink_len) {
+                return ERROR(
+                        "Symlink target %.20s... is too long (max is %d bytes)",
+                         tgt, max_symlink_len);
+        }
+
+        if(!symlink(tgt, src)) {
+                return NULL;
+        }
+
+        int errn = errno;
+        LOG_F(err_log, "symlink() failed: %s", strerror(errn));
+
+        if(errn != EEXIST) {
+                return IO_ERROR(tf->name, errno,
+                        "Creating dir-walk test-case symlink to '%s'",
+                        tf->symlink);
+        }
+
+        char buf[max_symlink_len + 1];
+        ssize_t n = readlink(src, buf, sizeof(buf));
+        if(0 > n) {
+                return IO_ERROR(src, errno,
+                        "Checking existing dir-walk test-case symlink");
+        }
+        buf[n] = 0;
+        if(strcmp(buf, tgt)) {
+                return ERROR("Incorrect existing dir-walk "
+                        "test-case symlink %s \n"
+                        "  points to: %s\n"
+                        "  should be: %s",
+                        src, buf, tgt);
+        }
+
+        return NULL;
+}
+
 
 static Error *make_test_file_(TestFile *tf)
 {
@@ -381,7 +434,9 @@ TestFile *make_test_dir_tree()
         TestFile *tf0 = test_dir_tree_;
         for(TestFile *tf = tf0; tf->name; tf++) {
                 Error *e;
-                if(tf->content == NULL)
+                if(tf->symlink != NULL)
+                        e = make_test_symlink_(tf);
+                else if(tf->content == NULL)
                         e = make_test_dir_(tf);
                 else
                         e = make_test_file_(tf);
@@ -389,6 +444,7 @@ TestFile *make_test_dir_tree()
                         continue;
                 fprintf(stderr, "Error generating dirtree test-case: ");
                 error_fwrite(e, stderr);
+                fputc('\n', stderr);
                 exit(1);
         }
 
@@ -398,7 +454,7 @@ TestFile *make_test_dir_tree()
 static TestFile *chk_tree_equal(TestFile *tf, SrcTree *stree) {
         CHK(tf->name);
         CHK(stree->path);
-        CHK_STR_EQ(tf->name, stree->path);
+        CHK_STR_EQ(stree->path, tf->name);
         if(tf->content) {
                 CHK_STR_EQ(tf->content, stree->content);
         } else {
