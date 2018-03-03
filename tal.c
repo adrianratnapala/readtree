@@ -360,6 +360,8 @@ static TestFile test_dir_tree_[] = {
         {"test_dir_tree/link_to_dir01", NULL, "dir0/dir01"},
         DIR01_CONTENT("test_dir_tree/link_to_dir01"),
         {"test_dir_tree/link_to_empty_dir", NULL, "emptydir"},
+        {"test_dir_tree/link_to_link", NULL, "link_to_dir0"},
+        DIR0_CONTENT("test_dir_tree/link_to_link"),
         {"test_dir_tree/more_bigger", more_bigger_text},
         {0},
 };
