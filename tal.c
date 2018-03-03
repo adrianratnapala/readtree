@@ -97,6 +97,29 @@ error:
         return NULL;
 }
 
+unsigned char filetype(const char *path, const struct dirent *de) {
+        unsigned char de_type = de->d_type;
+        if(de_type != DT_UNKNOWN && de_type != DT_LNK)
+                return de_type;
+
+        struct stat st;
+        // FIX: confirm that stat recurively chases links.
+        if(0 >  stat(path, &st)) {
+                return DT_UNKNOWN;
+        }
+        switch(st.st_mode  & S_IFMT) {
+        case S_IFBLK: return DT_BLK;
+        case S_IFCHR: return DT_CHR;
+        case S_IFIFO: return DT_FIFO;
+        case S_IFDIR: return DT_DIR;
+        case S_IFREG: return DT_REG;
+        case S_IFSOCK: return DT_SOCK;
+        case S_IFLNK:
+                PANIC("lstat of %s returned S_IFLINK!", path);
+        default: return DT_UNKNOWN;
+        }
+}
+
 static Error *from_dirent_(
         const char *root,
         SrcTree *pret,
@@ -115,11 +138,13 @@ static Error *from_dirent_(
                 PANIC_NOMEM();
         Error *err = NULL;
 
-        switch(de->d_type) {
+        switch(filetype(r.path, de)) {
         case DT_DIR:
                 r.sub = walk_tree_(r.path, &r.nsub, &err);
                 break;
         case DT_LNK:
+                r.content = read_file_(r.path, &r.size, &err);
+                break;
         case DT_REG:
                 r.content = read_file_(r.path, &r.size, &err);
                 break;
@@ -323,6 +348,7 @@ static TestFile test_dir_tree_[] = {
         {"test_dir_tree/later_dir/file0", "content of later file 0"},
         {"test_dir_tree/later_dir/file1", "content of later file 1"},
         {"test_dir_tree/later_dir/file3", "content of later file 3"},
+        {"test_dir_tree/link_to_empty_dir", NULL, "emptydir"},
         {"test_dir_tree/more_bigger", more_bigger_text},
         {0},
 };
