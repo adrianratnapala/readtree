@@ -331,13 +331,16 @@ static const char more_bigger_text[] =
         "Bat still nit very beg.\n"
         ;
 
+#define DIR01_CONTENT(R) \
+        {R "/deeper_file", "content file 0.0.0"}
+
 // FIX: test empty files
 // All directories should be sorted, in naive byte-for-byte order.
 static TestFile test_dir_tree_[] = {
         {"test_dir_tree", NULL},
         {"test_dir_tree/dir0", NULL},
         {"test_dir_tree/dir0/dir01", NULL},
-        {"test_dir_tree/dir0/dir01/deeper_file", "content file 0.0.0"},
+        DIR01_CONTENT("test_dir_tree/dir0/dir01"),
         {"test_dir_tree/dir0/file0", "content of file 0.0"},
         {"test_dir_tree/dir0/file1", "content of file 0.1"},
         {"test_dir_tree/dir0/link", more_bigger_text, "../more_bigger"},
@@ -348,6 +351,8 @@ static TestFile test_dir_tree_[] = {
         {"test_dir_tree/later_dir/file0", "content of later file 0"},
         {"test_dir_tree/later_dir/file1", "content of later file 1"},
         {"test_dir_tree/later_dir/file3", "content of later file 3"},
+        {"test_dir_tree/link_to_dir01", NULL, "dir0/dir01"},
+        DIR01_CONTENT("test_dir_tree/link_to_dir01"),
         {"test_dir_tree/link_to_empty_dir", NULL, "emptydir"},
         {"test_dir_tree/more_bigger", more_bigger_text},
         {0},
