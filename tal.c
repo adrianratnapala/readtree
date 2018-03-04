@@ -4,6 +4,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -21,7 +22,11 @@
         CHKV((A) && (B) && !strcmp((A),(B)), \
                 "("#A")'%s' != ("#B")'%s'", (A), (B))
 
+#define MAX_IN_DIR 1000000
+
+// FIX: increase these
 #define MIN_READ 1
+#define MIN_READ_DIR 1
 
 typedef struct SrcTree {
         char *path;
@@ -177,11 +182,75 @@ static int filter(const struct dirent *de)
         return *name != '.';
 }
 
+typedef int (*FilterFun)(const struct dirent *);
+typedef int (*CmpFun)(const struct dirent **, const struct dirent **);
+typedef int (*QSortFun)(const void *, const void *);
+
+static int scandir_(
+        const char *dirname,
+        struct dirent ***pdirentv,
+        FilterFun filter,
+        CmpFun compar)
+{
+        DIR *dir = opendir(dirname);
+        if(!dir) {
+                return -1;
+        }
+
+        struct dirent **direntv = NULL;
+        int used = 0, alloced = 0;
+
+        for(;;) {
+                if(used == alloced) {
+                        if(!(alloced *= 2))
+                                alloced = 1;
+                        LOG_F(dbg_log, "allocating %d dirent ptrs", alloced);
+                        direntv = realloc(direntv, alloced * sizeof direntv[0]);
+                        if(!direntv) {
+                                errno = ENOMEM;
+                                return -1;
+                        }
+                }
+
+                struct dirent *de = readdir(dir);
+                if(!de)
+                        break;
+                if(!filter(de))
+                        continue;
+
+                size_t de_size =
+                        offsetof(struct dirent, d_name)+strlen(de->d_name)+1;
+                LOG_F(dbg_log, "copying %lu byte dirent", de_size);
+                struct dirent *de2 = malloc(de_size + 1);
+                if(!de2)
+                        return -1;
+                memcpy(de2, de, de_size + 1);
+
+                assert(used < alloced);
+                direntv[used++] = de2;
+                if(used >= MAX_IN_DIR)
+                        PANIC("Directory %s as > %d entries!",
+                                dirname, MAX_IN_DIR);
+        }
+
+        LOG_F(dbg_log, "trimming alloc to %d dirent ptrs", used);
+        direntv = realloc(direntv, used * sizeof direntv[0]);
+        if(!direntv && used) {
+                errno = ENOMEM;
+                return -1;
+        }
+
+        QSortFun qcompar = (QSortFun)compar;
+        qsort(direntv, used, sizeof direntv[0], qcompar);
+        *pdirentv = direntv;
+        return used;
+}
+
 static SrcTree *walk_tree_(const char *root, unsigned *pnsub, Error **perr)
 {
         // FIX: write our own, deterministic alternative to alphasort.
         struct dirent **direntv;
-        int n = scandir(root, &direntv, filter, alphasort);
+        int n = scandir_(root, &direntv, filter, alphasort);
         if(n < 0) {
                 *perr = IO_ERROR(root, errno, "walking directory");
                 return NULL;
@@ -538,6 +607,8 @@ static int test_dir_tree()
 int main(void)
 {
         test_dir_tree();
+
+        // FIX: we need bad-path tests, e.g. cyclic symlinks, FIFOs in the tree
         return zunit_report();
 }
 
