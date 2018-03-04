@@ -163,7 +163,7 @@ static void destroy_tree_(SrcTree t)
 {
         free(t.path);
         free(t.content);
-        for(unsigned k; k < t.nsub; k++) {
+        for(unsigned k = 0; k < t.nsub; k++) {
                 destroy_tree_(t.sub[k]);
         }
         free(t.sub);
