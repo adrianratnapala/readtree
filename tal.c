@@ -186,15 +186,17 @@ typedef int (*FilterFun)(const struct dirent *);
 typedef int (*CmpFun)(const struct dirent **, const struct dirent **);
 typedef int (*QSortFun)(const void *, const void *);
 
-static int scandir_(
+static Error *load_direntv_(
         const char *dirname,
+        unsigned *pndirent,
         struct dirent ***pdirentv,
         FilterFun filter,
         CmpFun compar)
 {
+        errno = 0;
         DIR *dir = opendir(dirname);
         if(!dir) {
-                return -1;
+                return IO_ERROR(dirname, errno, "dirwalk opening %s/", dir);
         }
 
         struct dirent **direntv = NULL;
@@ -207,14 +209,18 @@ static int scandir_(
                         LOG_F(dbg_log, "allocating %d dirent ptrs", alloced);
                         direntv = realloc(direntv, alloced * sizeof direntv[0]);
                         if(!direntv) {
-                                errno = ENOMEM;
-                                return -1;
+                                PANIC_NOMEM();
                         }
                 }
 
                 struct dirent *de = readdir(dir);
-                if(!de)
-                        break;
+                if(!de) {
+                        if(!errno)
+                                break;
+                        IO_PANIC(dirname, errno,
+                                "readdir() failed after opendir()");
+
+                }
                 if(!filter(de))
                         continue;
 
@@ -222,43 +228,45 @@ static int scandir_(
                         offsetof(struct dirent, d_name)+strlen(de->d_name)+1;
                 LOG_F(dbg_log, "copying %lu byte dirent", de_size);
                 struct dirent *de2 = malloc(de_size + 1);
-                if(!de2)
-                        return -1;
+                if(!de2) {
+                        PANIC_NOMEM();
+                }
                 memcpy(de2, de, de_size + 1);
 
                 assert(used < alloced);
                 direntv[used++] = de2;
                 if(used >= MAX_IN_DIR)
-                        PANIC("Directory %s as > %d entries!",
+                        PANIC("Directory %s has > %d entries!",
                                 dirname, MAX_IN_DIR);
         }
+
 
         LOG_F(dbg_log, "trimming alloc to %d dirent ptrs", used);
         direntv = realloc(direntv, used * sizeof direntv[0]);
         if(!direntv && used) {
-                errno = ENOMEM;
-                return -1;
+                PANIC_NOMEM();
         }
 
         QSortFun qcompar = (QSortFun)compar;
         qsort(direntv, used, sizeof direntv[0], qcompar);
         *pdirentv = direntv;
-        return used;
+        *pndirent = used;
+        return NULL;
 }
 
 static SrcTree *walk_tree_(const char *root, unsigned *pnsub, Error **perr)
 {
         // FIX: write our own, deterministic alternative to alphasort.
         struct dirent **direntv;
-        int n = scandir_(root, &direntv, filter, alphasort);
-        if(n < 0) {
-                *perr = IO_ERROR(root, errno, "walking directory");
+        unsigned n;
+        Error * err = load_direntv_(root, &n, &direntv, filter, alphasort);
+        if(err) {
+                *perr = err;
                 return NULL;
         }
         assert(direntv || !n);
         struct SrcTree *subv = MALLOC(sizeof(SrcTree)*n);
 
-        Error *err = NULL;
         int nconverted;
         for(nconverted = 0; nconverted < n; nconverted++) {
                 err = from_dirent_(root, subv+nconverted, direntv[nconverted]);
