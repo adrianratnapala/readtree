@@ -185,7 +185,7 @@ static int filter(const struct dirent *de)
 typedef int (*FilterFun)(const struct dirent *);
 typedef int (*CmpFun)(const struct dirent **, const struct dirent **);
 
-static int qsort_fun_(const void *a, const void *b)
+static int qsort_fun_(const void *a, const void *b, void *arg)
 {
         const struct dirent *const *ade = a, *const *bde = b;
         const char *name_a = (**ade).d_name;
@@ -254,7 +254,7 @@ static Error *load_direntv_(
                 PANIC_NOMEM();
         }
 
-        qsort(direntv, used, sizeof direntv[0], qsort_fun_);
+        qsort_r(direntv, used, sizeof direntv[0], qsort_fun_, NULL);
         *pdirentv = direntv;
         *pndirent = used;
         return NULL;
