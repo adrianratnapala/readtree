@@ -28,17 +28,17 @@
 #define MIN_READ 1
 #define MIN_READ_DIR 1
 
-typedef struct SrcTree {
+typedef struct Tree {
         char *path;
 
         unsigned size;
         char *content;
 
         unsigned nsub;
-        struct SrcTree *sub;
-} SrcTree;
+        struct Tree *sub;
+} Tree;
 
-static SrcTree *read_tree_(const char *root, unsigned *pnsub, Error **perr);
+static Tree *read_tree_(const char *root, unsigned *pnsub, Error **perr);
 
 static char *read_file_(const char *path, unsigned *psize, Error **perr)
 {
@@ -127,7 +127,7 @@ unsigned char filetype(const char *path, const struct dirent *de) {
 
 static Error *from_dirent_(
         const char *root,
-        SrcTree *pret,
+        Tree *pret,
         const struct dirent *de)
 {
         assert(de);
@@ -137,7 +137,7 @@ static Error *from_dirent_(
         if(!name)
                 PANIC("NULL name from scandir of %s!", root);
 
-        SrcTree r = {0};
+        Tree r = {0};
 
         if(0 > asprintf(&r.path, "%s/%s", root, name))
                 PANIC_NOMEM();
@@ -164,7 +164,7 @@ static Error *from_dirent_(
         return NULL;
 }
 
-static void destroy_tree_(SrcTree t)
+static void destroy_tree_(Tree t)
 {
         free(t.path);
         free(t.content);
@@ -260,7 +260,7 @@ static Error *load_direntv_(
         return NULL;
 }
 
-static SrcTree *read_tree_(const char *root, unsigned *pnsub, Error **perr)
+static Tree *read_tree_(const char *root, unsigned *pnsub, Error **perr)
 {
         // FIX: write our own, deterministic alternative to alphasort.
         struct dirent **direntv;
@@ -271,7 +271,7 @@ static SrcTree *read_tree_(const char *root, unsigned *pnsub, Error **perr)
                 return NULL;
         }
         assert(direntv || !n);
-        struct SrcTree *subv = MALLOC(sizeof(SrcTree)*n);
+        struct Tree *subv = MALLOC(sizeof(Tree)*n);
 
         int nconverted;
         for(nconverted = 0; nconverted < n; nconverted++) {
@@ -303,24 +303,24 @@ static SrcTree *read_tree_(const char *root, unsigned *pnsub, Error **perr)
         return NULL;
 }
 
-void destroy_src_tree(SrcTree *stree)
+void destroy_src_tree(Tree *tree)
 {
-        if(!stree)
+        if(!tree)
                 return;
-        destroy_tree_(*stree);
-        free(stree);
+        destroy_tree_(*tree);
+        free(tree);
 }
 
-Error *read_source_tree(const char *root, SrcTree **pstree)
+Error *read_source_tree(const char *root, Tree **ptree)
 {
         // FIX: reduce the boilerplate.
         if(!root)
                 PANIC("'root' is null");
-        if(!pstree)
-                PANIC("'pstree' is null");
+        if(!ptree)
+                PANIC("'ptree' is null");
         assert(root);
-        assert(pstree);
-        SrcTree t = {.path = strdup(root)};
+        assert(ptree);
+        Tree t = {.path = strdup(root)};
         if(!t.path) {
                 PANIC_NOMEM();
         }
@@ -329,13 +329,13 @@ Error *read_source_tree(const char *root, SrcTree **pstree)
         if(err) {
                 return err;
         }
-        SrcTree *stree = malloc(sizeof(SrcTree));
-        if(!stree) {
+        Tree *tree = malloc(sizeof(Tree));
+        if(!tree) {
                 destroy_tree_(t);
                 PANIC_NOMEM();
         }
-        *stree = t;
-        *pstree = stree;
+        *tree = t;
+        *ptree = tree;
         return NULL;
 }
 
@@ -573,20 +573,20 @@ TestFile *make_test_dir_tree()
         return tf0;
 }
 
-static TestFile *chk_tree_equal(TestFile *tf, SrcTree *stree) {
+static TestFile *chk_tree_equal(TestFile *tf, Tree *tree) {
         CHK(tf->name);
-        CHK(stree->path);
-        CHK_STR_EQ(stree->path, tf->name);
+        CHK(tree->path);
+        CHK_STR_EQ(tree->path, tf->name);
         if(tf->content) {
-                CHK_STR_EQ(tf->content, stree->content);
+                CHK_STR_EQ(tf->content, tree->content);
         } else {
-                CHK(!stree->content);
+                CHK(!tree->content);
         }
 
         ++tf;
 
-        SrcTree *sub0 = stree->sub, *subE = sub0 + stree->nsub;
-        for(SrcTree *src = sub0; src < subE; src++) {
+        Tree *sub0 = tree->sub, *subE = sub0 + tree->nsub;
+        for(Tree *src = sub0; src < subE; src++) {
                 CHK(tf = chk_tree_equal(tf, src));
         }
 
@@ -606,14 +606,14 @@ static int test_dir_tree()
 {
         TestFile *tf = make_test_dir_tree();
 
-        SrcTree *stree;
-        CHK(noerror(read_source_tree("test_dir_tree", &stree)));
+        Tree *tree;
+        CHK(noerror(read_source_tree("test_dir_tree", &tree)));
 
-        CHK(tf = chk_tree_equal(tf, stree));
+        CHK(tf = chk_tree_equal(tf, tree));
         CHKV(tf->name == NULL, "Expected files/dirs missing from tree read: "
                          "%s, ...", tf->name);
 
-        destroy_src_tree(stree);
+        destroy_src_tree(tree);
 
         PASS();
 }
