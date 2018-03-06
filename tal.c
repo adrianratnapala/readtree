@@ -45,6 +45,7 @@ typedef struct {
 
 static Tree *read_tree_(const char *root, unsigned *pnsub, Error **perr);
 
+
 static char *read_file_(const char *path, unsigned *psize, Error **perr)
 {
         errno = 0;
@@ -193,6 +194,22 @@ static int qsort_fun_(const void *va, const void *vb, void *arg)
         return strcmp(name_a, name_b);
 }
 
+static TypedDe_ copy_de_(const struct dirent* de)
+{
+        size_t de_size =
+                offsetof(struct dirent, d_name)+strlen(de->d_name)+1;
+        LOG_F(dbg_log, "copying %lu byte dirent", de_size);
+        TypedDe_ tde = {
+                .de  = malloc(de_size + 1),
+        };
+        if(!tde.de) {
+                PANIC_NOMEM();
+        }
+        memcpy(tde.de, de, de_size + 1);
+        return tde;
+}
+
+
 static Error *load_typed_direntv_(
         const char *dirname,
         unsigned *pndirent,
@@ -231,16 +248,8 @@ static Error *load_typed_direntv_(
                 if(!filter(de))
                         continue;
 
-                size_t de_size =
-                        offsetof(struct dirent, d_name)+strlen(de->d_name)+1;
-                LOG_F(dbg_log, "copying %lu byte dirent", de_size);
-                TypedDe_ tde = {
-                        .de = malloc(de_size + 1),
-                };
-                memcpy(tde.de, de, de_size + 1);
-
                 assert(used < alloced);
-                direntv[used++] = tde;
+                direntv[used++] = copy_de_(de);
                 if(used >= MAX_IN_DIR)
                         PANIC("Directory %s has > %d entries!",
                                 dirname, MAX_IN_DIR);
