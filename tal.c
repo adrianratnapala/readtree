@@ -266,6 +266,7 @@ static Error *load_typed_direntv_(
         qsort_r(direntv, used, sizeof direntv[0], qsort_fun_, NULL);
         *pdirentv = direntv;
         *pndirent = used;
+        closedir(dir);
         return NULL;
 }
 
