@@ -11,6 +11,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include <linux/limits.h> // FIX: handle NAME_MAX better.
 #include <sys/sysmacros.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -40,7 +41,8 @@ typedef struct Tree {
 
 typedef struct {
         char *path;
-        struct dirent *de;
+        int de_type;
+        const char *name;
 } TypedDe_;
 
 static Tree *read_tree_(const char *root, unsigned *pnsub, Error **perr);
@@ -108,7 +110,8 @@ error:
         return NULL;
 }
 
-unsigned char filetype(const char *path, const struct dirent *de) {
+static unsigned char de_type_(const char *path, const struct dirent *de)
+{
         unsigned char de_type = de->d_type;
         if(de_type != DT_UNKNOWN && de_type != DT_LNK)
                 return de_type;
@@ -135,14 +138,14 @@ static Error *from_typed_de(const char *root, Tree *pret, const TypedDe_ tde)
 {
         assert(pret);
         assert(root);
-        const char *name = tde.de->d_name;
+        const char *name = tde.name;
         if(!name)
                 PANIC("NULL name from scandir of %s!", root);
 
         Tree r = {.path = tde.path};
         Error *err = NULL;
 
-        switch(filetype(r.path, tde.de)) {
+        switch(tde.de_type) {
         case DT_DIR:
                 r.sub = read_tree_(r.path, &r.nsub, &err);
                 break;
@@ -186,8 +189,8 @@ typedef int (*FilterFun)(const struct dirent *);
 static int qsort_fun_(const void *va, const void *vb, void *arg)
 {
         const TypedDe_ *a = va, *b = vb;
-        const char *name_a = a->de->d_name;
-        const char *name_b = b->de->d_name;
+        const char *name_a = a->name;
+        const char *name_b = b->name;
         return strcmp(name_a, name_b);
 }
 
@@ -201,19 +204,17 @@ static TypedDe_ next_de_(const char *dirname, DIR *dir)
                         "readdir() failed after opendir()");
         } while(!filter(de));
 
-        size_t de_size =
-                offsetof(struct dirent, d_name)+strlen(de->d_name)+1;
-        LOG_F(dbg_log, "copying %lu byte dirent", de_size);
-        TypedDe_ tde = {
-                .de  = malloc(de_size + 1),
-        };
+        TypedDe_ tde;
+        int path_len = asprintf(&tde.path, "%s/%s", dirname, de->d_name);
+        if(0 > path_len)
+                PANIC_NOMEM();
+        tde.de_type = de_type_(tde.path, de);
 
-        if(!tde.de) {
-                PANIC_NOMEM();
-        }
-        if(0 > asprintf(&tde.path, "%s/%s", dirname, de->d_name))
-                PANIC_NOMEM();
-        memcpy(tde.de, de, de_size + 1);
+        int name_len = strnlen(de->d_name, NAME_MAX + 1);
+        if(name_len > NAME_MAX)
+                PANIC("filename under %s longer than %d bytes",
+                        dirname, NAME_MAX);
+        tde.name = tde.path + path_len - name_len;
         return tde;
 }
 
@@ -246,7 +247,7 @@ static Error *load_typed_direntv_(
                 }
 
                 TypedDe_ tde = next_de_(dirname, dir);
-                if(!tde.de)
+                if(!tde.path)
                         break;
 
                 assert(used < alloced);
@@ -273,44 +274,42 @@ static Error *load_typed_direntv_(
 static Tree *read_tree_(const char *root, unsigned *pnsub, Error **perr)
 {
         // FIX: write our own, deterministic alternative to alphasort.
-        TypedDe_ *direntv;
+        TypedDe_ *stub;
         unsigned n;
-        Error * err = load_typed_direntv_(root, &n, &direntv, filter);
+        Error * err = load_typed_direntv_(root, &n, &stub, filter);
         if(err) {
                 *perr = err;
                 return NULL;
         }
-        assert(direntv || !n);
+        assert(stub || !n);
         struct Tree *subv = MALLOC(sizeof(Tree)*n);
 
         int nconverted;
         for(nconverted = 0; nconverted < n; nconverted++) {
-                err = from_typed_de(root, subv+nconverted, direntv[nconverted]);
+                err = from_typed_de(root, subv+nconverted, stub[nconverted]);
                 if(err)
                         break;
         }
 
-        // Clear up the dirent whether or not there was an error.
-        for(int k = 0; k < n; k++) {
-                free(direntv[k].de);
-        }
-        free(direntv);
-
-        // Happy path: just return the subv.
         assert(n >= 0);
         if(!err) {
+                // Happy path: just return the subv.
                 *pnsub = (unsigned)n;
-                return subv;
+        } else {
+                // Sad path: clean up stubs and already-converted trees.
+                for(int k = 0; k < n; k++) {
+                        free(stub[k].path);
+                }
+                for(int k = 0; k < nconverted; k++) {
+                        destroy_tree_(subv[k]);
+                }
+                free(subv);
+                subv = NULL;
         }
 
-        // Sad path: clean up whatever trees were already converted.
-        for(int k = 0; k < nconverted; k++) {
-                destroy_tree_(subv[k]);
-        }
-        free(subv);
-
+        free(stub);
         *perr = err;
-        return NULL;
+        return subv;
 }
 
 void destroy_src_tree(Tree *tree)
