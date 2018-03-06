@@ -38,7 +38,7 @@ typedef struct SrcTree {
         struct SrcTree *sub;
 } SrcTree;
 
-static SrcTree *walk_tree_(const char *root, unsigned *pnsub, Error **perr);
+static SrcTree *read_tree_(const char *root, unsigned *pnsub, Error **perr);
 
 static char *read_file_(const char *path, unsigned *psize, Error **perr)
 {
@@ -145,7 +145,7 @@ static Error *from_dirent_(
 
         switch(filetype(r.path, de)) {
         case DT_DIR:
-                r.sub = walk_tree_(r.path, &r.nsub, &err);
+                r.sub = read_tree_(r.path, &r.nsub, &err);
                 break;
         case DT_LNK:
                 r.content = read_file_(r.path, &r.size, &err);
@@ -155,7 +155,7 @@ static Error *from_dirent_(
                 break;
         default:
                 return IO_ERROR(r.path, EINVAL,
-                "Dirwalking something that is neither a file nor directory.");
+                "Reading something that is neither a file nor directory.");
         }
 
         if(err)
@@ -203,7 +203,7 @@ static Error *load_direntv_(
         errno = 0;
         DIR *dir = opendir(dirname);
         if(!dir) {
-                return IO_ERROR(dirname, errno, "dirwalk opening %s/", dir);
+                return IO_ERROR(dirname, errno, "Readtree opening %s/", dir);
         }
 
         struct dirent **direntv = NULL;
@@ -260,7 +260,7 @@ static Error *load_direntv_(
         return NULL;
 }
 
-static SrcTree *walk_tree_(const char *root, unsigned *pnsub, Error **perr)
+static SrcTree *read_tree_(const char *root, unsigned *pnsub, Error **perr)
 {
         // FIX: write our own, deterministic alternative to alphasort.
         struct dirent **direntv;
@@ -311,7 +311,7 @@ void destroy_src_tree(SrcTree *stree)
         free(stree);
 }
 
-Error *walk_source_tree(const char *root, SrcTree **pstree)
+Error *read_source_tree(const char *root, SrcTree **pstree)
 {
         // FIX: reduce the boilerplate.
         if(!root)
@@ -325,7 +325,7 @@ Error *walk_source_tree(const char *root, SrcTree **pstree)
                 PANIC_NOMEM();
         }
         Error *err = NULL;
-        t.sub = walk_tree_(root, &t.nsub, &err);
+        t.sub = read_tree_(root, &t.nsub, &err);
         if(err) {
                 return err;
         }
@@ -474,7 +474,7 @@ static Error *make_test_symlink_(TestFile *tf)
 
         if(errn != EEXIST) {
                 return IO_ERROR(tf->name, errno,
-                        "Creating dir-walk test-case symlink to '%s'",
+                        "Creating readtree test-case symlink to '%s'",
                         tf->symlink);
         }
 
@@ -482,11 +482,11 @@ static Error *make_test_symlink_(TestFile *tf)
         ssize_t n = readlink(src, buf, sizeof(buf));
         if(0 > n) {
                 return IO_ERROR(src, errno,
-                        "Checking existing dir-walk test-case symlink");
+                        "Checking existing readtree test-case symlink");
         }
         buf[n] = 0;
         if(strcmp(buf, tgt)) {
-                return ERROR("Incorrect existing dir-walk "
+                return ERROR("Incorrect existing readtree "
                         "test-case symlink %s \n"
                         "  points to: %s\n"
                         "  should be: %s",
@@ -505,15 +505,15 @@ static Error *make_test_file_(TestFile *tf)
         FILE *f = fopen(tf->name, "w");
         if(!f) {
                 return IO_ERROR(tf->name, errno,
-                        "Creating dir-walk test-case file");
+                        "Creating readtree test-case file");
         }
         if(EOF == fputs(tf->content, f)) {
                 return IO_ERROR(tf->name, errno,
-                        "Writing content of dir-walk test-case file");
+                        "Writing content of readtree test-case file");
         }
         if(fclose(f)) {
                 return IO_ERROR(tf->name, errno,
-                        "Closing dir-walk test-case file (bad nework fs?)");
+                        "Closing readtree test-case file (bad nework fs?)");
         }
         return NULL;
 }
@@ -533,14 +533,14 @@ static Error *make_test_dir_(TestFile *tf)
         if(ern == EEXIST && ! stat(tf->name, &st)) {
                 if((st.st_mode & S_IFMT) != S_IFDIR) {
                         return IO_ERROR(tf->name, ern,
-                                "dir-walk test-case dir already exists, "
+                                "readtree test-case dir already exists, "
                                 "but is not a directory!");
                 }
 
                 // FIX: this must be run with a sufficiently permissive umask.
                 if((st.st_mode & 0777) != mkdir_mode) {
                         return IO_ERROR(tf->name, ern,
-                                "dir-walk test-case dir already exists, "
+                                "readtree test-case dir already exists, "
                                 "with permissions mode %o != %o",
                                 st.st_mode & 0777, mkdir_mode);
                 }
@@ -548,7 +548,7 @@ static Error *make_test_dir_(TestFile *tf)
         }
 
 
-        return IO_ERROR(tf->name, ern, "Creating dir-walk test-case dir");
+        return IO_ERROR(tf->name, ern, "Creating readtree test-case dir");
 }
 
 TestFile *make_test_dir_tree()
@@ -607,10 +607,10 @@ static int test_dir_tree()
         TestFile *tf = make_test_dir_tree();
 
         SrcTree *stree;
-        CHK(noerror(walk_source_tree("test_dir_tree", &stree)));
+        CHK(noerror(read_source_tree("test_dir_tree", &stree)));
 
         CHK(tf = chk_tree_equal(tf, stree));
-        CHKV(tf->name == NULL, "Expected files/dirs missing from tree walk: "
+        CHKV(tf->name == NULL, "Expected files/dirs missing from tree read: "
                          "%s, ...", tf->name);
 
         destroy_src_tree(stree);
