@@ -194,8 +194,16 @@ static int qsort_fun_(const void *va, const void *vb, void *arg)
         return strcmp(name_a, name_b);
 }
 
-static TypedDe_ copy_de_(const struct dirent* de)
+static TypedDe_ next_de_(const char *dirname, DIR *dir)
 {
+        struct dirent *de;
+        do if(!(de = readdir(dir))) {
+                if(!errno)
+                        return (TypedDe_){0};
+                IO_PANIC(dirname, errno,
+                        "readdir() failed after opendir()");
+        } while(!filter(de));
+
         size_t de_size =
                 offsetof(struct dirent, d_name)+strlen(de->d_name)+1;
         LOG_F(dbg_log, "copying %lu byte dirent", de_size);
@@ -216,10 +224,11 @@ static Error *load_typed_direntv_(
         TypedDe_ **pdirentv,
         FilterFun filter)
 {
+        assert(dirname);
         errno = 0;
         DIR *dir = opendir(dirname);
         if(!dir) {
-                return IO_ERROR(dirname, errno, "Readtree opening %s/", dir);
+                return IO_ERROR(dirname, errno, "Readtree opening dir");
         }
 
         TypedDe_ *direntv = NULL;
@@ -236,20 +245,12 @@ static Error *load_typed_direntv_(
                         }
                 }
 
-                struct dirent *de = readdir(dir);
-                if(!de) {
-                        if(!errno)
-                                break;
-                        IO_PANIC(dirname, errno,
-                                "readdir() failed after opendir()");
-
-                }
-
-                if(!filter(de))
-                        continue;
+                TypedDe_ tde = next_de_(dirname, dir);
+                if(!tde.de)
+                        break;
 
                 assert(used < alloced);
-                direntv[used++] = copy_de_(de);
+                direntv[used++] = tde;
                 if(used >= MAX_IN_DIR)
                         PANIC("Directory %s has > %d entries!",
                                 dirname, MAX_IN_DIR);
