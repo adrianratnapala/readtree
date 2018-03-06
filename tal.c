@@ -43,7 +43,7 @@ typedef struct {
         char *path;
         int de_type;
         const char *name;
-} TypedDe_;
+} Stub_;
 
 static Tree *read_tree_(const char *root, unsigned *pnsub, Error **perr);
 
@@ -134,7 +134,7 @@ static unsigned char de_type_(const char *path, const struct dirent *de)
         }
 }
 
-static Error *from_typed_de(const char *root, Tree *pret, const TypedDe_ tde)
+static Error *from_typed_de(const char *root, Tree *pret, const Stub_ tde)
 {
         assert(pret);
         assert(root);
@@ -188,23 +188,23 @@ typedef int (*FilterFun)(const struct dirent *);
 
 static int qsort_fun_(const void *va, const void *vb, void *arg)
 {
-        const TypedDe_ *a = va, *b = vb;
+        const Stub_ *a = va, *b = vb;
         const char *name_a = a->name;
         const char *name_b = b->name;
         return strcmp(name_a, name_b);
 }
 
-static TypedDe_ next_de_(const char *dirname, DIR *dir)
+static Stub_ next_stub_(const char *dirname, DIR *dir)
 {
         struct dirent *de;
         do if(!(de = readdir(dir))) {
                 if(!errno)
-                        return (TypedDe_){0};
+                        return (Stub_){0};
                 IO_PANIC(dirname, errno,
                         "readdir() failed after opendir()");
         } while(!filter(de));
 
-        TypedDe_ tde;
+        Stub_ tde;
         int path_len = asprintf(&tde.path, "%s/%s", dirname, de->d_name);
         if(0 > path_len)
                 PANIC_NOMEM();
@@ -219,10 +219,10 @@ static TypedDe_ next_de_(const char *dirname, DIR *dir)
 }
 
 
-static Error *load_typed_direntv_(
+static Error *load_stubv_(
         const char *dirname,
-        unsigned *pndirent,
-        TypedDe_ **pdirentv,
+        unsigned *pnstub,
+        Stub_ **pstubv,
         FilterFun filter)
 {
         assert(dirname);
@@ -232,7 +232,7 @@ static Error *load_typed_direntv_(
                 return IO_ERROR(dirname, errno, "Readtree opening dir");
         }
 
-        TypedDe_ *direntv = NULL;
+        Stub_ *stubv = NULL;
         int used = 0, alloced = 0;
 
         for(;;) {
@@ -240,18 +240,18 @@ static Error *load_typed_direntv_(
                         if(!(alloced *= 2))
                                 alloced = 1;
                         LOG_F(dbg_log, "allocating %d dirent ptrs", alloced);
-                        direntv = realloc(direntv, alloced * sizeof direntv[0]);
-                        if(!direntv) {
+                        stubv = realloc(stubv, alloced * sizeof stubv[0]);
+                        if(!stubv) {
                                 PANIC_NOMEM();
                         }
                 }
 
-                TypedDe_ tde = next_de_(dirname, dir);
+                Stub_ tde = next_stub_(dirname, dir);
                 if(!tde.path)
                         break;
 
                 assert(used < alloced);
-                direntv[used++] = tde;
+                stubv[used++] = tde;
                 if(used >= MAX_IN_DIR)
                         PANIC("Directory %s has > %d entries!",
                                 dirname, MAX_IN_DIR);
@@ -259,14 +259,14 @@ static Error *load_typed_direntv_(
 
 
         LOG_F(dbg_log, "trimming alloc to %d dirent ptrs", used);
-        direntv = realloc(direntv, used * sizeof direntv[0]);
-        if(!direntv && used) {
+        stubv = realloc(stubv, used * sizeof stubv[0]);
+        if(!stubv && used) {
                 PANIC_NOMEM();
         }
 
-        qsort_r(direntv, used, sizeof direntv[0], qsort_fun_, NULL);
-        *pdirentv = direntv;
-        *pndirent = used;
+        qsort_r(stubv, used, sizeof stubv[0], qsort_fun_, NULL);
+        *pstubv = stubv;
+        *pnstub = used;
         closedir(dir);
         return NULL;
 }
@@ -274,9 +274,9 @@ static Error *load_typed_direntv_(
 static Tree *read_tree_(const char *root, unsigned *pnsub, Error **perr)
 {
         // FIX: write our own, deterministic alternative to alphasort.
-        TypedDe_ *stub;
+        Stub_ *stub;
         unsigned n;
-        Error * err = load_typed_direntv_(root, &n, &stub, filter);
+        Error * err = load_stubv_(root, &n, &stub, filter);
         if(err) {
                 *perr = err;
                 return NULL;
