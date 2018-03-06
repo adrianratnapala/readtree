@@ -39,7 +39,7 @@ typedef struct Tree {
 } Tree;
 
 typedef struct {
-        const char *path;
+        char *path;
         struct dirent *de;
 } TypedDe_;
 
@@ -139,10 +139,7 @@ static Error *from_typed_de(const char *root, Tree *pret, const TypedDe_ tde)
         if(!name)
                 PANIC("NULL name from scandir of %s!", root);
 
-        Tree r = {0};
-
-        if(0 > asprintf(&r.path, "%s/%s", root, name))
-                PANIC_NOMEM();
+        Tree r = {.path = tde.path};
         Error *err = NULL;
 
         switch(filetype(r.path, tde.de)) {
@@ -210,9 +207,12 @@ static TypedDe_ next_de_(const char *dirname, DIR *dir)
         TypedDe_ tde = {
                 .de  = malloc(de_size + 1),
         };
+
         if(!tde.de) {
                 PANIC_NOMEM();
         }
+        if(0 > asprintf(&tde.path, "%s/%s", dirname, de->d_name))
+                PANIC_NOMEM();
         memcpy(tde.de, de, de_size + 1);
         return tde;
 }
