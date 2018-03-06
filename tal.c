@@ -38,6 +38,11 @@ typedef struct Tree {
         struct Tree *sub;
 } Tree;
 
+typedef struct {
+        const char *path;
+        struct dirent *de;
+} TypedDe_;
+
 static Tree *read_tree_(const char *root, unsigned *pnsub, Error **perr);
 
 static char *read_file_(const char *path, unsigned *psize, Error **perr)
@@ -125,15 +130,11 @@ unsigned char filetype(const char *path, const struct dirent *de) {
         }
 }
 
-static Error *from_dirent_(
-        const char *root,
-        Tree *pret,
-        const struct dirent *de)
+static Error *from_typed_de(const char *root, Tree *pret, const TypedDe_ tde)
 {
-        assert(de);
         assert(pret);
         assert(root);
-        const char *name = de->d_name;
+        const char *name = tde.de->d_name;
         if(!name)
                 PANIC("NULL name from scandir of %s!", root);
 
@@ -143,7 +144,7 @@ static Error *from_dirent_(
                 PANIC_NOMEM();
         Error *err = NULL;
 
-        switch(filetype(r.path, de)) {
+        switch(filetype(r.path, tde.de)) {
         case DT_DIR:
                 r.sub = read_tree_(r.path, &r.nsub, &err);
                 break;
@@ -183,22 +184,20 @@ static int filter(const struct dirent *de)
 }
 
 typedef int (*FilterFun)(const struct dirent *);
-typedef int (*CmpFun)(const struct dirent **, const struct dirent **);
 
-static int qsort_fun_(const void *a, const void *b, void *arg)
+static int qsort_fun_(const void *va, const void *vb, void *arg)
 {
-        const struct dirent *const *ade = a, *const *bde = b;
-        const char *name_a = (**ade).d_name;
-        const char *name_b = (**bde).d_name;
+        const TypedDe_ *a = va, *b = vb;
+        const char *name_a = a->de->d_name;
+        const char *name_b = b->de->d_name;
         return strcmp(name_a, name_b);
 }
 
-static Error *load_direntv_(
+static Error *load_typed_direntv_(
         const char *dirname,
         unsigned *pndirent,
-        struct dirent ***pdirentv,
-        FilterFun filter,
-        CmpFun compar)
+        TypedDe_ **pdirentv,
+        FilterFun filter)
 {
         errno = 0;
         DIR *dir = opendir(dirname);
@@ -206,7 +205,7 @@ static Error *load_direntv_(
                 return IO_ERROR(dirname, errno, "Readtree opening %s/", dir);
         }
 
-        struct dirent **direntv = NULL;
+        TypedDe_ *direntv = NULL;
         int used = 0, alloced = 0;
 
         for(;;) {
@@ -228,20 +227,20 @@ static Error *load_direntv_(
                                 "readdir() failed after opendir()");
 
                 }
+
                 if(!filter(de))
                         continue;
 
                 size_t de_size =
                         offsetof(struct dirent, d_name)+strlen(de->d_name)+1;
                 LOG_F(dbg_log, "copying %lu byte dirent", de_size);
-                struct dirent *de2 = malloc(de_size + 1);
-                if(!de2) {
-                        PANIC_NOMEM();
-                }
-                memcpy(de2, de, de_size + 1);
+                TypedDe_ tde = {
+                        .de = malloc(de_size + 1),
+                };
+                memcpy(tde.de, de, de_size + 1);
 
                 assert(used < alloced);
-                direntv[used++] = de2;
+                direntv[used++] = tde;
                 if(used >= MAX_IN_DIR)
                         PANIC("Directory %s has > %d entries!",
                                 dirname, MAX_IN_DIR);
@@ -263,9 +262,9 @@ static Error *load_direntv_(
 static Tree *read_tree_(const char *root, unsigned *pnsub, Error **perr)
 {
         // FIX: write our own, deterministic alternative to alphasort.
-        struct dirent **direntv;
+        TypedDe_ *direntv;
         unsigned n;
-        Error * err = load_direntv_(root, &n, &direntv, filter, alphasort);
+        Error * err = load_typed_direntv_(root, &n, &direntv, filter);
         if(err) {
                 *perr = err;
                 return NULL;
@@ -275,14 +274,14 @@ static Tree *read_tree_(const char *root, unsigned *pnsub, Error **perr)
 
         int nconverted;
         for(nconverted = 0; nconverted < n; nconverted++) {
-                err = from_dirent_(root, subv+nconverted, direntv[nconverted]);
+                err = from_typed_de(root, subv+nconverted, direntv[nconverted]);
                 if(err)
                         break;
         }
 
         // Clear up the dirent whether or not there was an error.
         for(int k = 0; k < n; k++) {
-                free(direntv[k]);
+                free(direntv[k].de);
         }
         free(direntv);
 
