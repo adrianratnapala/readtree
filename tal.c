@@ -193,12 +193,14 @@ static bool accept_all_(
         return true;
 }
 
+static bool reject_early(const ReadTreeConf *conf, const char *name)
+{
+        assert(name);
+        return *name == '.';
+}
+
 static bool accept(const ReadTreeConf *conf, Stub_ stub)
 {
-        assert(stub.name);
-        if(*stub.name == '.')
-                return false;
-
         switch(stub.de_type) {
         case DT_DIR: return conf->accept_dir(conf, stub.path, stub.name);
         case DT_REG: return conf->accept_file(conf, stub.path, stub.name);
@@ -226,6 +228,10 @@ static Stub_ next_stub_(const ReadTreeConf *conf, const char *dirname, DIR *dir)
                         return (Stub_){0};
                 IO_PANIC(dirname, errno,
                         "readdir() failed after opendir()");
+        }
+
+        if(reject_early(conf, de->d_name)) {
+                return next_stub_(conf, dirname, dir);
         }
 
         Stub_ tde;
