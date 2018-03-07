@@ -4,6 +4,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -176,15 +177,38 @@ static void destroy_tree_(Tree t)
         free(t.sub);
 }
 
-static int filter(const struct dirent *de)
+typedef struct ReadTreeConf ReadTreeConf;
+
+struct ReadTreeConf {
+        bool (*accept_dir)(const ReadTreeConf *, const char *, const char *);
+        bool (*accept_file)(const ReadTreeConf *, const char *, const char *);
+        //FIX: implement allow_hidden_files;
+};
+
+static bool accept_all_(
+        const ReadTreeConf *conf,
+        const char *path,
+        const char *name)
 {
-        const char *name = de->d_name;
-        if(!name)
-                PANIC("scandir called filter with NULL name!");
-        return *name != '.';
+        return true;
 }
 
-typedef int (*FilterFun)(const struct dirent *);
+static bool accept(const ReadTreeConf *conf, Stub_ stub)
+{
+        assert(stub.name);
+        if(*stub.name == '.')
+                return false;
+
+        switch(stub.de_type) {
+        case DT_DIR: return conf->accept_dir(conf, stub.path, stub.name);
+        case DT_REG: return conf->accept_file(conf, stub.path, stub.name);
+        default:
+                // FIX: we rely on this error being caught later, but code is
+                // clearer if we don't do that.
+                return false;
+        }
+}
+
 
 static int qsort_fun_(const void *va, const void *vb, void *arg)
 {
@@ -194,15 +218,15 @@ static int qsort_fun_(const void *va, const void *vb, void *arg)
         return strcmp(name_a, name_b);
 }
 
-static Stub_ next_stub_(const char *dirname, DIR *dir)
+static Stub_ next_stub_(const ReadTreeConf *conf, const char *dirname, DIR *dir)
 {
         struct dirent *de;
-        do if(!(de = readdir(dir))) {
+        if(!(de = readdir(dir))) {
                 if(!errno)
                         return (Stub_){0};
                 IO_PANIC(dirname, errno,
                         "readdir() failed after opendir()");
-        } while(!filter(de));
+        }
 
         Stub_ tde;
         int path_len = asprintf(&tde.path, "%s/%s", dirname, de->d_name);
@@ -215,15 +239,20 @@ static Stub_ next_stub_(const char *dirname, DIR *dir)
                 PANIC("filename under %s longer than %d bytes",
                         dirname, NAME_MAX);
         tde.name = tde.path + path_len - name_len;
-        return tde;
+
+        if(accept(conf, tde)) {
+                return tde;
+        }
+        free(tde.path);
+        return next_stub_(conf, dirname, dir);
 }
 
 
 static Error *load_stubv_(
+        const ReadTreeConf *conf,
         const char *dirname,
         unsigned *pnstub,
-        Stub_ **pstubv,
-        FilterFun filter)
+        Stub_ **pstubv)
 {
         assert(dirname);
         errno = 0;
@@ -246,7 +275,7 @@ static Error *load_stubv_(
                         }
                 }
 
-                Stub_ tde = next_stub_(dirname, dir);
+                Stub_ tde = next_stub_(conf, dirname, dir);
                 if(!tde.path)
                         break;
 
@@ -273,10 +302,15 @@ static Error *load_stubv_(
 
 static Tree *read_tree_(const char *root, unsigned *pnsub, Error **perr)
 {
+        ReadTreeConf conf = {
+                .accept_dir = accept_all_,
+                .accept_file = accept_all_,
+        };
+
         // FIX: write our own, deterministic alternative to alphasort.
         Stub_ *stub;
         unsigned n;
-        Error * err = load_stubv_(root, &n, &stub, filter);
+        Error * err = load_stubv_(&conf, root, &n, &stub);
         if(err) {
                 *perr = err;
                 return NULL;
