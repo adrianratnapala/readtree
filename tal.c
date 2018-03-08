@@ -46,8 +46,20 @@ typedef struct {
         const char *name;
 } Stub_;
 
-static Tree *read_tree_(const char *root, unsigned *pnsub, Error **perr);
+typedef struct ReadTreeConf ReadTreeConf;
 
+struct ReadTreeConf {
+        bool (*accept_dir)(const ReadTreeConf *, const char *, const char *);
+        bool (*accept_file)(const ReadTreeConf *, const char *, const char *);
+        //FIX: implement allow_hidden_files;
+};
+
+
+static Tree *read_tree_(
+        const ReadTreeConf *conf,
+        const char *root,
+        unsigned *pnsub,
+        Error **perr);
 
 static char *read_file_(const char *path, unsigned *psize, Error **perr)
 {
@@ -135,7 +147,11 @@ static unsigned char de_type_(const char *path, const struct dirent *de)
         }
 }
 
-static Error *from_typed_de(const char *root, Tree *pret, const Stub_ tde)
+static Error *from_typed_de(
+        const ReadTreeConf *conf,
+        const char *root,
+        Tree *pret,
+        const Stub_ tde)
 {
         assert(pret);
         assert(root);
@@ -148,7 +164,7 @@ static Error *from_typed_de(const char *root, Tree *pret, const Stub_ tde)
 
         switch(tde.de_type) {
         case DT_DIR:
-                r.sub = read_tree_(r.path, &r.nsub, &err);
+                r.sub = read_tree_(conf, r.path, &r.nsub, &err);
                 break;
         case DT_LNK:
                 r.content = read_file_(r.path, &r.size, &err);
@@ -176,14 +192,6 @@ static void destroy_tree_(Tree t)
         }
         free(t.sub);
 }
-
-typedef struct ReadTreeConf ReadTreeConf;
-
-struct ReadTreeConf {
-        bool (*accept_dir)(const ReadTreeConf *, const char *, const char *);
-        bool (*accept_file)(const ReadTreeConf *, const char *, const char *);
-        //FIX: implement allow_hidden_files;
-};
 
 static bool accept_all_(
         const ReadTreeConf *conf,
@@ -306,17 +314,16 @@ static Error *load_stubv_(
         return NULL;
 }
 
-static Tree *read_tree_(const char *root, unsigned *pnsub, Error **perr)
+static Tree *read_tree_(
+        const ReadTreeConf *conf,
+        const char *root,
+        unsigned *pnsub,
+        Error **perr)
 {
-        ReadTreeConf conf = {
-                .accept_dir = accept_all_,
-                .accept_file = accept_all_,
-        };
-
         // FIX: write our own, deterministic alternative to alphasort.
         Stub_ *stub;
         unsigned n;
-        Error * err = load_stubv_(&conf, root, &n, &stub);
+        Error * err = load_stubv_(conf, root, &n, &stub);
         if(err) {
                 *perr = err;
                 return NULL;
@@ -326,7 +333,8 @@ static Tree *read_tree_(const char *root, unsigned *pnsub, Error **perr)
 
         int nconverted;
         for(nconverted = 0; nconverted < n; nconverted++) {
-                err = from_typed_de(root, subv+nconverted, stub[nconverted]);
+                err = from_typed_de(
+                        conf, root, subv+nconverted, stub[nconverted]);
                 if(err)
                         break;
         }
@@ -360,8 +368,22 @@ void destroy_src_tree(Tree *tree)
         free(tree);
 }
 
-Error *read_source_tree(const char *root, Tree **ptree)
+Error *fill_out_config_(ReadTreeConf *conf)
 {
+        if(!conf->accept_dir)
+                conf->accept_dir = accept_all_;
+        if(!conf->accept_file)
+                conf->accept_file = accept_all_;
+        return NULL;
+}
+
+Error *read_source_tree(ReadTreeConf *pconf, const char *root, Tree **ptree)
+{
+        ReadTreeConf conf = {0};
+        if(pconf)
+                conf = *pconf;
+        fill_out_config_(&conf);
+
         // FIX: reduce the boilerplate.
         if(!root)
                 PANIC("'root' is null");
@@ -374,7 +396,7 @@ Error *read_source_tree(const char *root, Tree **ptree)
                 PANIC_NOMEM();
         }
         Error *err = NULL;
-        t.sub = read_tree_(root, &t.nsub, &err);
+        t.sub = read_tree_(&conf, root, &t.nsub, &err);
         if(err) {
                 return err;
         }
@@ -656,7 +678,7 @@ static int test_dir_tree()
         TestFile *tf = make_test_dir_tree();
 
         Tree *tree;
-        CHK(noerror(read_source_tree("test_dir_tree", &tree)));
+        CHK(noerror(read_source_tree(NULL, "test_dir_tree", &tree)));
 
         CHK(tf = chk_tree_equal(tf, tree));
         CHKV(tf->name == NULL, "Expected files/dirs missing from tree read: "
