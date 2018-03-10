@@ -649,24 +649,24 @@ fail:
         return 0;
 }
 
-static TestFile *chk_tree_equal(TestFile *tf, Tree *tree) {
-        CHK(tf->name);
+static TestFile *chk_tree_equal(TestFile *tfp, Tree *tree) {
+        TestFile tf = *tfp++;
+
+        CHK(tf.name);
         CHK(tree->path);
-        CHK_STR_EQ(tree->path, tf->name);
-        if(tf->content) {
-                CHK_STR_EQ(tf->content, tree->content);
+        CHK_STR_EQ(tree->path, tf.name);
+        if(tf.content) {
+                CHK_STR_EQ(tf.content, tree->content);
         } else {
                 CHK(!tree->content);
         }
 
-        ++tf;
-
         Tree *sub0 = tree->sub, *subE = sub0 + tree->nsub;
         for(Tree *src = sub0; src < subE; src++) {
-                CHK(tf = chk_tree_equal(tf, src));
+                CHK(tfp = chk_tree_equal(tfp, src));
         }
 
-        return tf;
+        return tfp;
 fail:
         return NULL;
 }
