@@ -625,7 +625,7 @@ static Error *make_test_dir_(TestFile *tf)
         return IO_ERROR(tf->name, ern, "Creating readtree test-case dir");
 }
 
-int make_test_dir_tree(TestFile *tf0)
+int make_test_tree(TestFile *tf0)
 {
         for(TestFile *tf = tf0; tf->name; tf++) {
                 Error *e;
@@ -681,8 +681,7 @@ static int noerror(Error *err) {
 static int test_dir_tree(TestFile *tf)
 {
         const char *name = tf->name;
-        CHK(make_test_dir_tree(tf));
-        make_test_dir_tree(tf);
+        CHK(make_test_tree(tf));
 
         Tree *tree;
         CHK(noerror(read_source_tree(NULL, name, &tree)));
