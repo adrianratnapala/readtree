@@ -377,7 +377,10 @@ Error *fill_out_config_(ReadTreeConf *conf)
         return NULL;
 }
 
-Error *read_source_tree(ReadTreeConf *pconf, const char *root, Tree **ptree)
+Error *read_source_tree(
+        const ReadTreeConf *pconf,
+        const char *root,
+        Tree **ptree)
 {
         ReadTreeConf conf = {0};
         if(pconf)
@@ -678,13 +681,12 @@ static int noerror(Error *err) {
         return 0;
 }
 
-static int test_dir_tree(TestFile *tf)
+
+static int chk_test_tree(TestFile *tf, const ReadTreeConf *conf)
 {
         const char *name = tf->name;
-        CHK(make_test_tree(tf));
-
         Tree *tree;
-        CHK(noerror(read_source_tree(NULL, name, &tree)));
+        CHK(noerror(read_source_tree(conf, name, &tree)));
 
         CHK(tf = chk_tree_equal(tf, tree));
         CHKV(tf->name == NULL, "Expected files/dirs missing from tree read: "
@@ -692,6 +694,13 @@ static int test_dir_tree(TestFile *tf)
 
         destroy_src_tree(tree);
 
+        PASS_QUIETLY();
+}
+
+static int test_dir_tree(TestFile *tf)
+{
+        CHK(make_test_tree(tf));
+        CHK(chk_test_tree(tf, NULL));
         PASS();
 }
 
