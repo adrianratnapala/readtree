@@ -622,9 +622,8 @@ static Error *make_test_dir_(TestFile *tf)
         return IO_ERROR(tf->name, ern, "Creating readtree test-case dir");
 }
 
-TestFile *make_test_dir_tree()
+int make_test_dir_tree(TestFile *tf0)
 {
-        TestFile *tf0 = test_dir_tree_;
         for(TestFile *tf = tf0; tf->name; tf++) {
                 Error *e;
                 if(tf->symlink != NULL)
@@ -638,10 +637,10 @@ TestFile *make_test_dir_tree()
                 fprintf(stderr, "Error generating dirtree test-case: ");
                 error_fwrite(e, stderr);
                 fputc('\n', stderr);
-                exit(1);
+                return 0;
         }
 
-        return tf0;
+        return 1;
 }
 
 static TestFile *chk_tree_equal(TestFile *tf, Tree *tree) {
@@ -673,16 +672,17 @@ static int noerror(Error *err) {
         return 0;
 }
 
-static int test_dir_tree()
+static int test_dir_tree(TestFile *tf)
 {
-        TestFile *tf = make_test_dir_tree();
+        const char *name = tf[0].name;
+        CHK(make_test_dir_tree(tf));
 
         Tree *tree;
-        CHK(noerror(read_source_tree(NULL, "test_dir_tree", &tree)));
+        CHK(noerror(read_source_tree(NULL, name, &tree)));
 
         CHK(tf = chk_tree_equal(tf, tree));
         CHKV(tf->name == NULL, "Expected files/dirs missing from tree read: "
-                         "%s, ...", tf->name);
+                         "%s, ...", name);
 
         destroy_src_tree(tree);
 
@@ -691,7 +691,7 @@ static int test_dir_tree()
 
 int main(void)
 {
-        test_dir_tree();
+        test_dir_tree(test_dir_tree_);
 
         // FIX: we need bad-path tests, e.g. cyclic symlinks, FIFOs in the tree
         return zunit_report();
