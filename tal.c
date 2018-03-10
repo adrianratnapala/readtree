@@ -52,6 +52,8 @@ struct ReadTreeConf {
         bool (*accept_dir)(const ReadTreeConf *, const char *, const char *);
         bool (*accept_file)(const ReadTreeConf *, const char *, const char *);
         //FIX: implement allow_hidden_files;
+
+        const void *user_data;
 };
 
 
@@ -655,6 +657,10 @@ fail:
 static TestFile *chk_tree_equal(TestFile *tfp, Tree *tree) {
         TestFile tf = *tfp++;
 
+        if(tf.expect_dropped) {
+                return chk_tree_equal(tfp, tree);
+        }
+
         CHK(tf.name);
         CHK(tree->path);
         CHK_STR_EQ(tree->path, tf.name);
@@ -689,22 +695,25 @@ static int chk_test_tree(TestFile *tf, const ReadTreeConf *conf)
         CHK(noerror(read_source_tree(conf, name, &tree)));
 
         CHK(tf = chk_tree_equal(tf, tree));
+        for(; tf->expect_dropped; tf++) { }
         CHKV(tf->name == NULL, "Expected files/dirs missing from tree read: "
                          "%s, ...", tf->name);
+
 
         destroy_src_tree(tree);
 
         PASS_QUIETLY();
 }
 
-static int test_dir_tree(TestFile *tf)
+static int test_dir_tree(void)
 {
+        TestFile *tf = test_dir_tree_;
         CHK(make_test_tree(tf));
         CHK(chk_test_tree(tf, NULL));
         PASS();
 }
 
-static TestFile test_drop_files_without_extension_[] = {
+static TestFile test_drop_files_without_suffix_[] = {
         {"test_endings_filter"},
         {"test_endings_filter/a.kept", "a"},
         {"test_endings_filter/b.kept", "b"},
@@ -718,10 +727,43 @@ static TestFile test_drop_files_without_extension_[] = {
         {0},
 };
 
+
+// FIX: make this public somehow.
+bool filter_by_suffix(
+        const ReadTreeConf *conf,
+        const char *path,
+        const char *fname)
+{
+        // FIX: make this take the user_data, not the config as an arg.
+        // otherwise dirs and files have to have the same data.
+        const char *suff = conf->user_data;
+        assert(suff);
+        assert(fname);
+        size_t n_suff = strlen(suff), n = strlen(fname);
+        if(n_suff > n)
+                return false;
+        return !memcmp(suff, fname + n - n_suff, n_suff);
+}
+
+static int test_drop_files_without_suffix(void)
+{
+        TestFile *tf =  test_drop_files_without_suffix_;
+        // FIX: we could make these truly data-driven tests by adding the
+        // config to the test-case data structure.
+        ReadTreeConf conf = {
+                .accept_file = filter_by_suffix,
+                .user_data = ".kept"
+        };
+
+        CHK(make_test_tree(tf));
+        CHK(chk_test_tree(tf, &conf));
+        PASS();
+}
+
 int main(void)
 {
-        test_dir_tree(test_dir_tree_);
-        test_dir_tree(test_drop_files_without_extension_);
+        test_dir_tree();
+        test_drop_files_without_suffix();
 
         // FIX: we need bad-path tests, e.g. cyclic symlinks, FIFOs in the tree
         return zunit_report();
