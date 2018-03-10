@@ -415,6 +415,7 @@ typedef const struct TestFile {
         const char *name;
         const char *content;
         const char *symlink;
+        bool expect_dropped;
 } TestFile;
 
 static const char more_bigger_text[] =
@@ -526,6 +527,7 @@ static Error *make_test_symlink_(TestFile *tf)
         const char *tgt, *src;
         assert(tf);
         assert((src = tf->name));
+        assert(*src);
         assert((tgt = tf->symlink));
         LOG_F(dbg_log, "Making test-tgt symlink %s -> %s", src, tgt);
 
@@ -544,7 +546,8 @@ static Error *make_test_symlink_(TestFile *tf)
         LOG_F(err_log, "symlink() failed: %s", strerror(errn));
 
         if(errn != EEXIST) {
-                return IO_ERROR(tf->name, errno,
+                assert(*src);
+                return IO_ERROR(src, errno,
                         "Creating readtree test-case symlink to '%s'",
                         tf->symlink);
         }
@@ -626,6 +629,7 @@ int make_test_dir_tree(TestFile *tf0)
 {
         for(TestFile *tf = tf0; tf->name; tf++) {
                 Error *e;
+                CHK(*tf->name);
                 if(tf->symlink != NULL)
                         e = make_test_symlink_(tf);
                 else if(tf->content == NULL)
@@ -637,10 +641,12 @@ int make_test_dir_tree(TestFile *tf0)
                 fprintf(stderr, "Error generating dirtree test-case: ");
                 error_fwrite(e, stderr);
                 fputc('\n', stderr);
-                return 0;
+                goto fail;
         }
 
         return 1;
+fail:
+        return 0;
 }
 
 static TestFile *chk_tree_equal(TestFile *tf, Tree *tree) {
@@ -674,24 +680,40 @@ static int noerror(Error *err) {
 
 static int test_dir_tree(TestFile *tf)
 {
-        const char *name = tf[0].name;
+        const char *name = tf->name;
         CHK(make_test_dir_tree(tf));
+        make_test_dir_tree(tf);
 
         Tree *tree;
         CHK(noerror(read_source_tree(NULL, name, &tree)));
 
         CHK(tf = chk_tree_equal(tf, tree));
         CHKV(tf->name == NULL, "Expected files/dirs missing from tree read: "
-                         "%s, ...", name);
+                         "%s, ...", tf->name);
 
         destroy_src_tree(tree);
 
         PASS();
 }
 
+static TestFile test_drop_files_without_extension_[] = {
+        {"test_endings_filter"},
+        {"test_endings_filter/a.kept", "a"},
+        {"test_endings_filter/b.kept", "b"},
+        {"test_endings_filter/dir_not_dropped"},
+        {"test_endings_filter/dir_not_dropped/sub_a.kept", "aa"},
+        {"test_endings_filter/dir_not_dropped/sub_b.kept", "bb"},
+        {"test_endings_filter/dir_not_dropped/sub_dropped", "dd",
+                .expect_dropped = true},
+        {"test_endings_filter/dropped", "d",
+                .expect_dropped = true},
+        {0},
+};
+
 int main(void)
 {
         test_dir_tree(test_dir_tree_);
+        test_dir_tree(test_drop_files_without_extension_);
 
         // FIX: we need bad-path tests, e.g. cyclic symlinks, FIFOs in the tree
         return zunit_report();
