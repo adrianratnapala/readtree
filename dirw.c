@@ -30,6 +30,9 @@
 #define MIN_READ 1
 #define MIN_READ_DIR 1
 
+// FIX: tests should have no output
+// FIX: separate test binary from libreadtree
+
 typedef struct Tree {
         char *path;
 
@@ -624,6 +627,17 @@ bool filter_by_suffix(
         return !memcmp(suff, fname + n - n_suff, n_suff);
 }
 
+static int test_read_tree_case(TestCase tc)
+{
+        TestFile *tf =  tc.files;
+        const char *name = tf->name;
+        CHKV(make_test_tree(tf),
+                "failed to make dirtree for test case %s", name);
+        CHKV(chk_test_tree(tf, &tc.conf),
+                "read-and-compare failed for test case %s", name);
+        PASS();
+}
+
 static const char more_bigger_text[] =
         "This file is slightly bigger than\n"
         "the others, but still not very big.\n"
@@ -728,8 +742,6 @@ static TestCase tc_main_test_tree_ = {
         }
 };
 
-// FIX: test a NULL (as opposed to {0} config).
-
 // FIX: do a similar test for dirs.
 TestCase tc_drop_files_without_suffix_ = {
         .conf = (ReadTreeConf){
@@ -751,23 +763,19 @@ TestCase tc_drop_files_without_suffix_ = {
         }
 };
 
-
-
-static int test_read_tree_case(TestCase tc)
+int test_null_config(void)
 {
-        TestFile *tf =  tc.files;
-        const char *name = tf->name;
+         TestFile *tf =  tc_main_test_tree_.files;
         CHKV(make_test_tree(tf),
-                "failed to make dirtree for test case %s", name);
-        CHKV(chk_test_tree(tf, &tc.conf),
-                "read-and-compare failed for test case %s", name);
+                "failed to make dirtree for NULL-config test case.");
+        CHKV(chk_test_tree(tf, &tc_main_test_tree_.conf),
+                "read-and-compare failed for NULL-config test-case.");
         PASS();
 }
 
-
-
 int main(void)
 {
+        test_null_config();
         test_read_tree_case(tc_main_test_tree_);
         test_read_tree_case(tc_drop_files_without_suffix_);
 
