@@ -4,7 +4,7 @@ LDFLAGS=-L $(B)
 LDLIBS=-lelm
 
 test: $B $B/dirw
-	$B/dirw < dirw.c
+	cd $B && ./dirw
 
 
 $B/dirw: $B/libelm.a
