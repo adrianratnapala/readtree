@@ -717,13 +717,13 @@ static const char more_bigger_text[] =
         {R"/file1", "content of file 0.1"}, \
         {R"/link", more_bigger_text, "../more_bigger"}
 
-// FIX: test empty files
 static TestCase tc_main_test_tree_ = {
         .files = (TestFile[]){
                 {"test_dir_tree", NULL},
                 {"test_dir_tree/dir0", NULL},
                 DIR0_CONTENT("test_dir_tree/dir0"),
                 {"test_dir_tree/emptydir", NULL},
+                {"test_dir_tree/emptyfile", ""},
                 {"test_dir_tree/file0", "content of file 0"},
                 {"test_dir_tree/file1", "content of file 1"},
                 {"test_dir_tree/later_dir", NULL},
