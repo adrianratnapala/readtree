@@ -423,109 +423,6 @@ typedef const struct TestFile {
         bool expect_dropped;
 } TestFile;
 
-static const char more_bigger_text[] =
-        "This file is slightly bigger than\n"
-        "the others, but still not very big.\n"
-
-        "But still not very big.\n"
-        "But still not very bug.\n"
-        "But still not very bog.\n"
-        "But still not very bag.\n"
-        "But still not very beg.\n"
-        "Bit still not very big.\n"
-        "Bit still not very bug.\n"
-        "Bit still not very bog.\n"
-        "Bit still not very bag.\n"
-        "Bit still not very beg.\n"
-        "Bet still not very big.\n"
-        "Bet still not very bug.\n"
-        "Bet still not very bog.\n"
-        "Bet still not very bag.\n"
-        "Bet still not very beg.\n"
-        "Bat still not very big.\n"
-        "Bat still not very bug.\n"
-        "Bat still not very bog.\n"
-        "Bat still not very bag.\n"
-        "Bat still not very beg.\n"
-
-        "But still net very big.\n"
-        "But still net very bug.\n"
-        "But still net very bog.\n"
-        "But still net very bag.\n"
-        "But still net very beg.\n"
-        "Bit still net very big.\n"
-        "Bit still net very bug.\n"
-        "Bit still net very bog.\n"
-        "Bit still net very bag.\n"
-        "Bit still net very beg.\n"
-        "Bet still net very big.\n"
-        "Bet still net very bug.\n"
-        "Bet still net very bog.\n"
-        "Bet still net very bag.\n"
-        "Bet still net very beg.\n"
-        "Bat still net very big.\n"
-        "Bat still net very bug.\n"
-        "Bat still net very bog.\n"
-        "Bat still net very bag.\n"
-        "Bat still net very beg.\n"
-
-        "But still nit very big.\n"
-        "But still nit very bug.\n"
-        "But still nit very bog.\n"
-        "But still nit very bag.\n"
-        "But still nit very beg.\n"
-        "Bit still nit very big.\n"
-        "Bit still nit very bug.\n"
-        "Bit still nit very bog.\n"
-        "Bit still nit very bag.\n"
-        "Bit still nit very beg.\n"
-        "Bet still nit very big.\n"
-        "Bet still nit very bug.\n"
-        "Bet still nit very bog.\n"
-        "Bet still nit very bag.\n"
-        "Bet still nit very beg.\n"
-        "Bat still nit very big.\n"
-        "Bat still nit very bug.\n"
-        "Bat still nit very bog.\n"
-        "Bat still nit very bag.\n"
-        "Bat still nit very beg.\n"
-        ;
-
-#define DIR01_CONTENT(R) \
-        {R "/deeper_file", "content file 0.0.0"}
-
-
-#define DIR0_CONTENT(R) \
-        {R"/dir01", NULL}, \
-        DIR01_CONTENT(R"/dir01"), \
-        {R"/file0", "content of file 0.0"}, \
-        {R"/file1", "content of file 0.1"}, \
-        {R"/link", more_bigger_text, "../more_bigger"}
-
-// FIX: test empty files
-// All directories should be sorted, in naive byte-for-byte order.
-static TestFile test_dir_tree_[] = {
-        {"test_dir_tree", NULL},
-        {"test_dir_tree/dir0", NULL},
-        DIR0_CONTENT("test_dir_tree/dir0"),
-        {"test_dir_tree/emptydir", NULL},
-        {"test_dir_tree/file0", "content of file 0"},
-        {"test_dir_tree/file1", "content of file 1"},
-        {"test_dir_tree/later_dir", NULL},
-        {"test_dir_tree/later_dir/file0", "content of later file 0"},
-        {"test_dir_tree/later_dir/file1", "content of later file 1"},
-        {"test_dir_tree/later_dir/file3", "content of later file 3"},
-        {"test_dir_tree/link_to_dir0", NULL, "dir0"},
-        DIR0_CONTENT("test_dir_tree/link_to_dir0"),
-        {"test_dir_tree/link_to_dir01", NULL, "dir0/dir01"},
-        DIR01_CONTENT("test_dir_tree/link_to_dir01"),
-        {"test_dir_tree/link_to_empty_dir", NULL, "emptydir"},
-        {"test_dir_tree/link_to_link", NULL, "link_to_dir0"},
-        DIR0_CONTENT("test_dir_tree/link_to_link"),
-        {"test_dir_tree/more_bigger", more_bigger_text},
-        {0},
-};
-
 static Error *make_test_symlink_(TestFile *tf)
 {
         const int max_symlink_len = 200;
@@ -705,6 +602,127 @@ static int chk_test_tree(TestFile *tf, const ReadTreeConf *conf)
         PASS_QUIETLY();
 }
 
+// FIX: make this public somehow.
+bool filter_by_suffix(
+        const ReadTreeConf *conf,
+        const char *path,
+        const char *fname)
+{
+        // FIX: make this take the user_data, not the config as an arg.
+        // otherwise dirs and files have to have the same data.
+        const char *suff = conf->user_data;
+        assert(suff);
+        assert(fname);
+        size_t n_suff = strlen(suff), n = strlen(fname);
+        if(n_suff > n)
+                return false;
+        return !memcmp(suff, fname + n - n_suff, n_suff);
+}
+
+static const char more_bigger_text[] =
+        "This file is slightly bigger than\n"
+        "the others, but still not very big.\n"
+
+        "But still not very big.\n"
+        "But still not very bug.\n"
+        "But still not very bog.\n"
+        "But still not very bag.\n"
+        "But still not very beg.\n"
+        "Bit still not very big.\n"
+        "Bit still not very bug.\n"
+        "Bit still not very bog.\n"
+        "Bit still not very bag.\n"
+        "Bit still not very beg.\n"
+        "Bet still not very big.\n"
+        "Bet still not very bug.\n"
+        "Bet still not very bog.\n"
+        "Bet still not very bag.\n"
+        "Bet still not very beg.\n"
+        "Bat still not very big.\n"
+        "Bat still not very bug.\n"
+        "Bat still not very bog.\n"
+        "Bat still not very bag.\n"
+        "Bat still not very beg.\n"
+
+        "But still net very big.\n"
+        "But still net very bug.\n"
+        "But still net very bog.\n"
+        "But still net very bag.\n"
+        "But still net very beg.\n"
+        "Bit still net very big.\n"
+        "Bit still net very bug.\n"
+        "Bit still net very bog.\n"
+        "Bit still net very bag.\n"
+        "Bit still net very beg.\n"
+        "Bet still net very big.\n"
+        "Bet still net very bug.\n"
+        "Bet still net very bog.\n"
+        "Bet still net very bag.\n"
+        "Bet still net very beg.\n"
+        "Bat still net very big.\n"
+        "Bat still net very bug.\n"
+        "Bat still net very bog.\n"
+        "Bat still net very bag.\n"
+        "Bat still net very beg.\n"
+
+        "But still nit very big.\n"
+        "But still nit very bug.\n"
+        "But still nit very bog.\n"
+        "But still nit very bag.\n"
+        "But still nit very beg.\n"
+        "Bit still nit very big.\n"
+        "Bit still nit very bug.\n"
+        "Bit still nit very bog.\n"
+        "Bit still nit very bag.\n"
+        "Bit still nit very beg.\n"
+        "Bet still nit very big.\n"
+        "Bet still nit very bug.\n"
+        "Bet still nit very bog.\n"
+        "Bet still nit very bag.\n"
+        "Bet still nit very beg.\n"
+        "Bat still nit very big.\n"
+        "Bat still nit very bug.\n"
+        "Bat still nit very bog.\n"
+        "Bat still nit very bag.\n"
+        "Bat still nit very beg.\n"
+        ;
+
+#define DIR01_CONTENT(R) \
+        {R "/deeper_file", "content file 0.0.0"}
+
+
+#define DIR0_CONTENT(R) \
+        {R"/dir01", NULL}, \
+        DIR01_CONTENT(R"/dir01"), \
+        {R"/file0", "content of file 0.0"}, \
+        {R"/file1", "content of file 0.1"}, \
+        {R"/link", more_bigger_text, "../more_bigger"}
+
+// FIX: test empty files
+// All directories should be sorted, in naive byte-for-byte order.
+static TestFile test_dir_tree_[] = {
+        {"test_dir_tree", NULL},
+        {"test_dir_tree/dir0", NULL},
+        DIR0_CONTENT("test_dir_tree/dir0"),
+        {"test_dir_tree/emptydir", NULL},
+        {"test_dir_tree/file0", "content of file 0"},
+        {"test_dir_tree/file1", "content of file 1"},
+        {"test_dir_tree/later_dir", NULL},
+        {"test_dir_tree/later_dir/file0", "content of later file 0"},
+        {"test_dir_tree/later_dir/file1", "content of later file 1"},
+        {"test_dir_tree/later_dir/file3", "content of later file 3"},
+        {"test_dir_tree/link_to_dir0", NULL, "dir0"},
+        DIR0_CONTENT("test_dir_tree/link_to_dir0"),
+        {"test_dir_tree/link_to_dir01", NULL, "dir0/dir01"},
+        DIR01_CONTENT("test_dir_tree/link_to_dir01"),
+        {"test_dir_tree/link_to_empty_dir", NULL, "emptydir"},
+        {"test_dir_tree/link_to_link", NULL, "link_to_dir0"},
+        DIR0_CONTENT("test_dir_tree/link_to_link"),
+        {"test_dir_tree/more_bigger", more_bigger_text},
+        {0},
+};
+
+
 static int test_dir_tree(void)
 {
         TestFile *tf = test_dir_tree_;
@@ -727,24 +745,6 @@ static TestFile test_drop_files_without_suffix_[] = {
         {0},
 };
 
-
-// FIX: make this public somehow.
-bool filter_by_suffix(
-        const ReadTreeConf *conf,
-        const char *path,
-        const char *fname)
-{
-        // FIX: make this take the user_data, not the config as an arg.
-        // otherwise dirs and files have to have the same data.
-        const char *suff = conf->user_data;
-        assert(suff);
-        assert(fname);
-        size_t n_suff = strlen(suff), n = strlen(fname);
-        if(n_suff > n)
-                return false;
-        return !memcmp(suff, fname + n - n_suff, n_suff);
-}
-
 static int test_drop_files_without_suffix(void)
 {
         TestFile *tf =  test_drop_files_without_suffix_;
@@ -759,6 +759,8 @@ static int test_drop_files_without_suffix(void)
         CHK(chk_test_tree(tf, &conf));
         PASS();
 }
+
+
 
 int main(void)
 {
