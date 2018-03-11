@@ -3,11 +3,11 @@ CFLAGS=-std=c99 -Wall -Werror -g -O0
 LDFLAGS=-L $(B)
 LDLIBS=-lelm
 
-test: $B $B/tal
-	$B/tal < tal.c
+test: $B $B/dirw
+	$B/dirw < dirw.c
 
 
-$B/tal: $B/libelm.a
+$B/dirw: $B/libelm.a
 
 $B/%.o: %.c
 	$(CC) -c $< $(CPPFLAGS) $(CFLAGS) -o $@
