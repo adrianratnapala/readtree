@@ -423,6 +423,11 @@ typedef const struct TestFile {
         bool expect_dropped;
 } TestFile;
 
+typedef const struct{
+        ReadTreeConf conf;
+        TestFile *files;
+} TestCase;
+
 static Error *make_test_symlink_(TestFile *tf)
 {
         const int max_symlink_len = 200;
@@ -745,18 +750,22 @@ static TestFile test_drop_files_without_suffix_[] = {
         {0},
 };
 
-static int test_drop_files_without_suffix(void)
-{
-        TestFile *tf =  test_drop_files_without_suffix_;
-        // FIX: we could make these truly data-driven tests by adding the
-        // config to the test-case data structure.
-        ReadTreeConf conf = {
+TestCase tcdfws = {
+        .conf = {
                 .accept_file = filter_by_suffix,
                 .user_data = ".kept"
-        };
+        },
+        .files = test_drop_files_without_suffix_,
+};
 
-        CHK(make_test_tree(tf));
-        CHK(chk_test_tree(tf, &conf));
+static int test_read_tree_case(TestCase tc)
+{
+        TestFile *tf =  tc.files;
+        const char *name = tf->name;
+        CHKV(make_test_tree(tf),
+                "failed to make dirtree for test case %s", name);
+        CHKV(chk_test_tree(tf, &tc.conf),
+                "read-and-compare failed for test case %s", name);
         PASS();
 }
 
@@ -765,7 +774,7 @@ static int test_drop_files_without_suffix(void)
 int main(void)
 {
         test_dir_tree();
-        test_drop_files_without_suffix();
+        test_read_tree_case(tcdfws);
 
         // FIX: we need bad-path tests, e.g. cyclic symlinks, FIFOs in the tree
         return zunit_report();
