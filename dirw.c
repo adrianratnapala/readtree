@@ -704,59 +704,54 @@ static const char more_bigger_text[] =
         {R"/link", more_bigger_text, "../more_bigger"}
 
 // FIX: test empty files
-// All directories should be sorted, in naive byte-for-byte order.
-static TestFile test_dir_tree_[] = {
-        {"test_dir_tree", NULL},
-        {"test_dir_tree/dir0", NULL},
-        DIR0_CONTENT("test_dir_tree/dir0"),
-        {"test_dir_tree/emptydir", NULL},
-        {"test_dir_tree/file0", "content of file 0"},
-        {"test_dir_tree/file1", "content of file 1"},
-        {"test_dir_tree/later_dir", NULL},
-        {"test_dir_tree/later_dir/file0", "content of later file 0"},
-        {"test_dir_tree/later_dir/file1", "content of later file 1"},
-        {"test_dir_tree/later_dir/file3", "content of later file 3"},
-        {"test_dir_tree/link_to_dir0", NULL, "dir0"},
-        DIR0_CONTENT("test_dir_tree/link_to_dir0"),
-        {"test_dir_tree/link_to_dir01", NULL, "dir0/dir01"},
-        DIR01_CONTENT("test_dir_tree/link_to_dir01"),
-        {"test_dir_tree/link_to_empty_dir", NULL, "emptydir"},
-        {"test_dir_tree/link_to_link", NULL, "link_to_dir0"},
-        DIR0_CONTENT("test_dir_tree/link_to_link"),
-        {"test_dir_tree/more_bigger", more_bigger_text},
-        {0},
+static TestCase tc_main_test_tree_ = {
+        .files = (TestFile[]){
+                {"test_dir_tree", NULL},
+                {"test_dir_tree/dir0", NULL},
+                DIR0_CONTENT("test_dir_tree/dir0"),
+                {"test_dir_tree/emptydir", NULL},
+                {"test_dir_tree/file0", "content of file 0"},
+                {"test_dir_tree/file1", "content of file 1"},
+                {"test_dir_tree/later_dir", NULL},
+                {"test_dir_tree/later_dir/file0", "content of later file 0"},
+                {"test_dir_tree/later_dir/file1", "content of later file 1"},
+                {"test_dir_tree/later_dir/file3", "content of later file 3"},
+                {"test_dir_tree/link_to_dir0", NULL, "dir0"},
+                DIR0_CONTENT("test_dir_tree/link_to_dir0"),
+                {"test_dir_tree/link_to_dir01", NULL, "dir0/dir01"},
+                DIR01_CONTENT("test_dir_tree/link_to_dir01"),
+                {"test_dir_tree/link_to_empty_dir", NULL, "emptydir"},
+                {"test_dir_tree/link_to_link", NULL, "link_to_dir0"},
+                DIR0_CONTENT("test_dir_tree/link_to_link"),
+                {"test_dir_tree/more_bigger", more_bigger_text},
+                {0},
+        }
 };
 
+// FIX: test a NULL (as opposed to {0} config).
 
-static int test_dir_tree(void)
-{
-        TestFile *tf = test_dir_tree_;
-        CHK(make_test_tree(tf));
-        CHK(chk_test_tree(tf, NULL));
-        PASS();
-}
-
-static TestFile test_drop_files_without_suffix_[] = {
-        {"test_endings_filter"},
-        {"test_endings_filter/a.kept", "a"},
-        {"test_endings_filter/b.kept", "b"},
-        {"test_endings_filter/dir_not_dropped"},
-        {"test_endings_filter/dir_not_dropped/sub_a.kept", "aa"},
-        {"test_endings_filter/dir_not_dropped/sub_b.kept", "bb"},
-        {"test_endings_filter/dir_not_dropped/sub_dropped", "dd",
-                .expect_dropped = true},
-        {"test_endings_filter/dropped", "d",
-                .expect_dropped = true},
-        {0},
-};
-
-TestCase tcdfws = {
-        .conf = {
+// FIX: do a similar test for dirs.
+TestCase tc_drop_files_without_suffix_ = {
+        .conf = (ReadTreeConf){
                 .accept_file = filter_by_suffix,
                 .user_data = ".kept"
         },
-        .files = test_drop_files_without_suffix_,
+        .files = (TestFile[]){
+                {"test_endings_filter"},
+                {"test_endings_filter/a.kept", "a"},
+                {"test_endings_filter/b.kept", "b"},
+                {"test_endings_filter/dir_not_dropped"},
+                {"test_endings_filter/dir_not_dropped/sub_a.kept", "aa"},
+                {"test_endings_filter/dir_not_dropped/sub_b.kept", "bb"},
+                {"test_endings_filter/dir_not_dropped/sub_dropped", "dd",
+                        .expect_dropped = true},
+                {"test_endings_filter/dropped", "d",
+                        .expect_dropped = true},
+                {0},
+        }
 };
+
+
 
 static int test_read_tree_case(TestCase tc)
 {
@@ -773,8 +768,8 @@ static int test_read_tree_case(TestCase tc)
 
 int main(void)
 {
-        test_dir_tree();
-        test_read_tree_case(tcdfws);
+        test_read_tree_case(tc_main_test_tree_);
+        test_read_tree_case(tc_drop_files_without_suffix_);
 
         // FIX: we need bad-path tests, e.g. cyclic symlinks, FIFOs in the tree
         return zunit_report();
