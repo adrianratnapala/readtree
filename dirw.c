@@ -158,7 +158,6 @@ static unsigned char de_type_(const char *path, const struct dirent *de)
                 return de_type;
 
         struct stat st;
-        // FIX: confirm that stat recurively chases links.
         if(0 >  stat(path, &st)) {
                 return DT_UNKNOWN;
         }
@@ -344,7 +343,6 @@ static Tree *read_tree_(
         unsigned *pnsub,
         Error **perr)
 {
-        // FIX: write our own, deterministic alternative to alphasort.
         Stub_ *stub;
         unsigned n;
         Error * err = load_stubv_(conf, root, &n, &stub);
@@ -411,13 +409,10 @@ Error *read_source_tree(
                 conf = *pconf;
         fill_out_config_(&conf);
 
-        // FIX: reduce the boilerplate.
         if(!root)
                 PANIC("'root' is null");
         if(!ptree)
                 PANIC("'ptree' is null");
-        assert(root);
-        assert(ptree);
         Tree t = {.path = strdup(root)};
         if(!t.path) {
                 PANIC_NOMEM();
