@@ -51,12 +51,35 @@ typedef struct {
 
 typedef struct ReadTreeConf ReadTreeConf;
 
-struct ReadTreeConf {
-        bool (*accept_dir)(const ReadTreeConf *, const char *, const char *);
-        bool (*accept_file)(const ReadTreeConf *, const char *, const char *);
-        //FIX: implement allow_hidden_files;
+bool read_tree_accept_suffix_(const void *arg, const char *path, const char *fname)
+{
+        const char *suff = arg;
+        assert(suff);
+        assert(fname);
+        size_t n_suff = strlen(suff), n = strlen(fname);
+        if(n_suff > n)
+                return false;
+        return !memcmp(suff, fname + n - n_suff, n_suff);
+}
 
-        const void *user_data;
+static bool read_tree_accept_all_(const void *arg, const char *path, const char *name)
+{
+        return true;
+}
+
+typedef struct {
+        bool (*fun_)(const void *, const char *, const char *);
+        void *arg_;
+} AcceptClosure;
+
+#define READ_TREE_ACCEPT_SUFFIX(suff) { \
+        read_tree_accept_suffix_, (suff) }
+#define READ_TREE_ACCEPT_ALL() { \
+        read_tree_accept_all_}
+
+struct ReadTreeConf {
+        AcceptClosure accept_dir, accept_file;
+        const void *accept_dir_arg, *accept_file_arg;
 };
 
 
@@ -198,13 +221,6 @@ static void destroy_tree_(Tree t)
         free(t.sub);
 }
 
-static bool accept_all_(
-        const ReadTreeConf *conf,
-        const char *path,
-        const char *name)
-{
-        return true;
-}
 
 static bool reject_early(const ReadTreeConf *conf, const char *name)
 {
@@ -214,14 +230,17 @@ static bool reject_early(const ReadTreeConf *conf, const char *name)
 
 static bool accept(const ReadTreeConf *conf, Stub_ stub)
 {
+        AcceptClosure closure;
         switch(stub.de_type) {
-        case DT_DIR: return conf->accept_dir(conf, stub.path, stub.name);
-        case DT_REG: return conf->accept_file(conf, stub.path, stub.name);
+        case DT_DIR: closure = conf->accept_dir; break;
+        case DT_REG: closure = conf->accept_file; break;
         default:
                 // FIX: we rely on this error being caught later, but code is
                 // clearer if we don't do that.
                 return false;
         }
+
+        return closure.fun_(closure.arg_, stub.path, stub.name);
 }
 
 
@@ -375,10 +394,10 @@ void destroy_src_tree(Tree *tree)
 
 Error *fill_out_config_(ReadTreeConf *conf)
 {
-        if(!conf->accept_dir)
-                conf->accept_dir = accept_all_;
-        if(!conf->accept_file)
-                conf->accept_file = accept_all_;
+        if(!conf->accept_dir.fun_)
+                conf->accept_dir = (AcceptClosure)READ_TREE_ACCEPT_ALL();
+        if(!conf->accept_file.fun_)
+                conf->accept_file = (AcceptClosure)READ_TREE_ACCEPT_ALL();
         return NULL;
 }
 
@@ -610,23 +629,6 @@ static int chk_test_tree(TestFile *tf, const ReadTreeConf *conf)
         PASS_QUIETLY();
 }
 
-// FIX: make this public somehow.
-bool filter_by_suffix(
-        const ReadTreeConf *conf,
-        const char *path,
-        const char *fname)
-{
-        // FIX: make this take the user_data, not the config as an arg.
-        // otherwise dirs and files have to have the same data.
-        const char *suff = conf->user_data;
-        assert(suff);
-        assert(fname);
-        size_t n_suff = strlen(suff), n = strlen(fname);
-        if(n_suff > n)
-                return false;
-        return !memcmp(suff, fname + n - n_suff, n_suff);
-}
-
 static int test_read_tree_case(TestCase tc)
 {
         TestFile *tf =  tc.files;
@@ -745,8 +747,7 @@ static TestCase tc_main_test_tree_ = {
 // FIX: do a similar test for dirs.
 TestCase tc_drop_files_without_suffix_ = {
         .conf = (ReadTreeConf){
-                .accept_file = filter_by_suffix,
-                .user_data = ".kept"
+                .accept_file = READ_TREE_ACCEPT_SUFFIX(".kept"),
         },
         .files = (TestFile[]){
                 {"test_endings_filter"},
