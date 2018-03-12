@@ -739,8 +739,7 @@ static TestCase tc_main_test_tree_ = {
         }
 };
 
-// FIX: do a similar test for dirs.
-TestCase tc_drop_files_without_suffix_ = {
+static TestCase tc_drop_files_without_suffix_ = {
         .conf = (ReadTreeConf){
                 .accept_file = READ_TREE_ACCEPT_SUFFIX(".kept"),
         },
@@ -755,6 +754,20 @@ TestCase tc_drop_files_without_suffix_ = {
                         .expect_dropped = true},
                 {"test_endings_filter/dropped", "d",
                         .expect_dropped = true},
+                {0},
+        }
+};
+
+static TestCase tc_drop_dirs_without_suffix_ = {
+        .conf = (ReadTreeConf){
+                .accept_dir = READ_TREE_ACCEPT_SUFFIX(".kepd"),
+        },
+        .files = (TestFile[]){
+                {"test_endings.kepd"},
+                {"test_endings.kepd/drop.d", .expect_dropped = true},
+                {"test_endings.kepd/drop.d/orphan", "this file is never read",
+                        .expect_dropped = true},
+                {"test_endings.kepd/file_kept_without_suffix", "fkws"},
                 {0},
         }
 };
@@ -774,6 +787,7 @@ int main(void)
         test_null_config();
         test_read_tree_case(tc_main_test_tree_);
         test_read_tree_case(tc_drop_files_without_suffix_);
+        test_read_tree_case(tc_drop_dirs_without_suffix_);
 
         // FIX: we need bad-path tests, e.g. cyclic symlinks, FIFOs in the tree
         return zunit_report();
