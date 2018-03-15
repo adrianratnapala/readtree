@@ -174,22 +174,17 @@ static unsigned char de_type_(const char *path, const struct dirent *de)
         }
 }
 
-static Error *from_typed_de(
-        const ReadTreeConf *conf,
-        const char *root,
-        Tree *pret,
-        const Stub_ tde)
+static Error *from_stub_(const ReadTreeConf *conf, Tree *pr, const Stub_ stub)
 {
-        assert(pret);
-        assert(root);
-        const char *name = tde.name;
+        assert(pr);
+        const char *name = stub.name;
         if(!name)
-                PANIC("NULL name from scandir of %s!", root);
+                PANIC("NULL name from scandir of %s!", stub.path);
 
-        Tree r = {.path = tde.path};
+        Tree r = {.path = stub.path};
         Error *err = NULL;
 
-        switch(tde.de_type) {
+        switch(stub.de_type) {
         case DT_DIR:
                 r.sub = read_tree_(conf, r.path, &r.nsub, &err);
                 break;
@@ -206,7 +201,7 @@ static Error *from_typed_de(
 
         if(err)
                 return err;
-        *pret = r;
+        *pr = r;
         return NULL;
 }
 
@@ -355,8 +350,7 @@ static Tree *read_tree_(
 
         int nconverted;
         for(nconverted = 0; nconverted < n; nconverted++) {
-                err = from_typed_de(
-                        conf, root, subv+nconverted, stub[nconverted]);
+                err = from_stub_(conf, subv+nconverted, stub[nconverted]);
                 if(err)
                         break;
         }
