@@ -90,6 +90,19 @@ static Tree *read_tree_(
         unsigned *pnsub,
         Error **perr);
 
+static char *path_join_(const char *base, const char *stem)
+{
+        size_t nb = strlen(base);
+        size_t ns = strlen(stem);
+        while(base[nb-1] == '/')
+                nb--;
+        char *ret = MALLOC(nb + ns + 2);
+        memcpy(ret, base, nb);
+        ret[nb] = '/';
+        memcpy(ret + nb + 1, stem, ns + 1);
+        return ret;
+}
+
 static char *read_file_(const char *path, unsigned *psize, Error **perr)
 {
         errno = 0;
@@ -262,6 +275,7 @@ static Stub_ next_stub_(const ReadTreeConf *conf, const char *dirname, DIR *dir)
         }
 
         Stub_ tde;
+        // FIX: use join_path?
         int path_len = asprintf(&tde.path, "%s/%s", dirname, de->d_name);
         if(0 > path_len)
                 PANIC_NOMEM();
@@ -428,7 +442,7 @@ Error *read_source_tree(const ReadTreeConf *pconf, Tree **ptree)
 
 
 typedef const struct TestFile {
-        const char *name;
+        const char *path;
         const char *content;
         const char *symlink;
         bool expect_dropped;
@@ -439,15 +453,11 @@ typedef const struct{
         TestFile *files;
 } TestCase;
 
-static Error *make_test_symlink_(TestFile *tf)
+static Error *make_symlink_(const char *src, const char *tgt)
 {
         const int max_symlink_len = 200;
-        const char *tgt, *src;
-        assert(tf);
-        assert((src = tf->name));
-        assert(*src);
-        assert((tgt = tf->symlink));
-        LOG_F(dbg_log, "Making test-tgt symlink %s -> %s", src, tgt);
+        assert(src && *src);
+        assert(tgt && *tgt);
 
         int tgt_len = strnlen(tgt, max_symlink_len + 2);
         if(tgt_len > max_symlink_len) {
@@ -461,13 +471,12 @@ static Error *make_test_symlink_(TestFile *tf)
         }
 
         int errn = errno;
-        LOG_F(err_log, "symlink() failed: %s", strerror(errn));
 
         if(errn != EEXIST) {
+                LOG_F(err_log, "symlink() failed: %s", strerror(errn));
                 assert(*src);
                 return IO_ERROR(src, errno,
-                        "Creating readtree test-case symlink to '%s'",
-                        tf->symlink);
+                        "Creating readtree test-case symlink to '%s'", tgt);
         }
 
         char buf[max_symlink_len + 1];
@@ -488,50 +497,71 @@ static Error *make_test_symlink_(TestFile *tf)
         return NULL;
 }
 
-
-static Error *make_test_file_(TestFile *tf)
+static Error *make_test_symlink_(const char *root, TestFile *tf)
 {
         assert(tf);
-        assert(tf->name);
-        assert(tf->content);
-        FILE *f = fopen(tf->name, "w");
-        if(!f) {
-                return IO_ERROR(tf->name, errno,
-                        "Creating readtree test-case file");
-        }
-        if(EOF == fputs(tf->content, f)) {
-                return IO_ERROR(tf->name, errno,
-                        "Writing content of readtree test-case file");
-        }
-        if(fclose(f)) {
-                return IO_ERROR(tf->name, errno,
-                        "Closing readtree test-case file (bad nework fs?)");
-        }
-        return NULL;
+        assert(root && *root);
+
+        char *src = path_join_(root, tf->path);
+        const char *tgt = tf->symlink;
+        if(!src || !tgt)
+                PANIC_NOMEM();
+
+        LOG_F(dbg_log, "Making test-tgt symlink %s -> %s", src, tgt);
+        Error *err = make_symlink_(src, tgt);
+        free(src);
+
+        return err;
 }
 
-static Error *make_test_dir_(TestFile *tf)
+
+
+static Error *make_test_file_(const char *root, TestFile *tf)
 {
-        const int mkdir_mode = 0755;
         assert(tf);
-        assert(tf->name);
-        assert(!tf->content);
-        if(!mkdir(tf->name, mkdir_mode)) {
-                return NULL;
+        assert(root);
+        assert(tf->path);
+        assert(tf->content);
+        Error *err = NULL;
+        char *path = path_join_(root, tf->path);
+        FILE *f = fopen(path, "w");
+        if(!f) {
+                err = IO_ERROR(path, errno,
+                        "Creating readtree test-case file");
+        }
+        else if(EOF == fputs(tf->content, f)) {
+                err = IO_ERROR(path, errno,
+                        "Writing content of readtree test-case file");
+        }
+        else if(fclose(f)) {
+                err = IO_ERROR(path, errno,
+                        "Closing readtree test-case file (bad nework fs?)");
         }
 
+        free(path);
+        return err;
+}
+
+static Error *make_dir_(const char *path)
+{
+        const int mkdir_mode = 0755;
+        assert(path && *path);
+        if(!mkdir(path, mkdir_mode)) {
+                return NULL;
+        }
         int ern = errno;
+
+        // FIX: invert the if.
         struct stat st;
-        if(ern == EEXIST && ! stat(tf->name, &st)) {
+        if(ern == EEXIST && !stat(path, &st)) {
                 if((st.st_mode & S_IFMT) != S_IFDIR) {
-                        return IO_ERROR(tf->name, ern,
+                        return IO_ERROR(path, ern,
                                 "readtree test-case dir already exists, "
                                 "but is not a directory!");
                 }
-
                 // FIX: this must be run with a sufficiently permissive umask.
-                if((st.st_mode & 0777) != mkdir_mode) {
-                        return IO_ERROR(tf->name, ern,
+                else if((st.st_mode & 0777) != mkdir_mode) {
+                        return IO_ERROR(path, ern,
                                 "readtree test-case dir already exists, "
                                 "with permissions mode %o != %o",
                                 st.st_mode & 0777, mkdir_mode);
@@ -539,58 +569,21 @@ static Error *make_test_dir_(TestFile *tf)
                 return NULL;
         }
 
-
-        return IO_ERROR(tf->name, ern, "Creating readtree test-case dir");
+        return IO_ERROR(path, ern, "Creating readtree test-case dir");
 }
 
-int make_test_tree(TestFile *tf0)
+
+static Error *make_test_dir_(const char *root, TestFile *tf)
 {
-        for(TestFile *tf = tf0; tf->name; tf++) {
-                Error *e;
-                CHK(*tf->name);
-                if(tf->symlink != NULL)
-                        e = make_test_symlink_(tf);
-                else if(tf->content == NULL)
-                        e = make_test_dir_(tf);
-                else
-                        e = make_test_file_(tf);
-                if(!e)
-                        continue;
-                fprintf(stderr, "Error generating dirtree test-case: ");
-                error_fwrite(e, stderr);
-                fputc('\n', stderr);
-                goto fail;
-        }
+        assert(tf);
+        assert(root);
+        assert(tf->path);
+        assert(!tf->content);
 
-        return 1;
-fail:
-        return 0;
-}
-
-static TestFile *chk_tree_equal(TestFile *tfp, Tree *tree) {
-        TestFile tf = *tfp++;
-
-        if(tf.expect_dropped) {
-                return chk_tree_equal(tfp, tree);
-        }
-
-        CHK(tf.name);
-        CHK(tree->path);
-        CHK_STR_EQ(tree->path, tf.name);
-        if(tf.content) {
-                CHK_STR_EQ(tf.content, tree->content);
-        } else {
-                CHK(!tree->content);
-        }
-
-        Tree *sub0 = tree->sub, *subE = sub0 + tree->nsub;
-        for(Tree *src = sub0; src < subE; src++) {
-                CHK(tfp = chk_tree_equal(tfp, src));
-        }
-
-        return tfp;
-fail:
-        return NULL;
+        char *path = path_join_(root, tf->path);
+        Error *err = make_dir_(path);
+        free(path);
+        return err;
 }
 
 static int noerror(Error *err) {
@@ -601,15 +594,76 @@ static int noerror(Error *err) {
 }
 
 
+int make_test_tree(const char *root, TestFile *tf0)
+{
+        //CHK(noerror(make_dir_(root)));
+
+        for(TestFile *tf = tf0; tf->path; tf++) {
+                Error *e;
+                //CHK(*tf->path);
+                if(tf->symlink != NULL)
+                        e = make_test_symlink_(root, tf);
+                else if(tf->content == NULL)
+                        e = make_test_dir_(root, tf);
+                else
+                        e = make_test_file_(root, tf);
+                if(!e)
+                        continue;
+                fprintf(stderr, "Error generating dirtree test-case: ");
+                error_fwrite(e, stderr);
+                fputc('\n', stderr);
+                goto fail;
+        }
+
+        PASS_QUIETLY();
+}
+
+static TestFile *chk_tree_equal(const char *root, TestFile *tfp, Tree *tree) {
+        TestFile tf = *tfp++;
+
+        if(tf.expect_dropped) {
+                return chk_tree_equal(root, tfp, tree);
+        }
+
+        CHK(tf.path);
+        CHK(tree->path);
+
+        LOG_F(dbg_log, "Comparing: %s with %s", tf.path, tree->path);
+
+        {
+                char *tf_path;
+                if(*tf.path)
+                        CHK(0 < asprintf(&tf_path, "%s/%s", root, tf.path));
+                else
+                        tf_path = strdup(root);
+                CHK_STR_EQ(tree->path, tf_path);
+                free(tf_path);
+        }
+        if(tf.content) {
+                CHK_STR_EQ(tf.content, tree->content);
+        } else {
+                CHK(!tree->content);
+        }
+
+        Tree *sub0 = tree->sub, *subE = sub0 + tree->nsub;
+        for(Tree *src = sub0; src < subE; src++) {
+                CHK(tfp = chk_tree_equal(root, tfp, src));
+        }
+
+        return tfp;
+fail:
+        return NULL;
+}
+
 static int chk_test_tree(TestFile *tf, const ReadTreeConf *conf)
 {
         Tree *tree;
         CHK(noerror(read_source_tree(conf, &tree)));
 
-        CHK(tf = chk_tree_equal(tf, tree));
+        CHK(tf = chk_tree_equal(conf->root, tf, tree));
         for(; tf->expect_dropped; tf++) { }
-        CHKV(tf->name == NULL, "Expected files/dirs missing from tree read: "
-                         "%s, ...", tf->name);
+        CHKV(tf->path == NULL, "Expected files/dirs missing from tree read: "
+                         "%s, ...", tf->path);
 
 
         destroy_src_tree(tree);
@@ -620,8 +674,8 @@ static int chk_test_tree(TestFile *tf, const ReadTreeConf *conf)
 static int test_read_tree_case(TestCase tc)
 {
         TestFile *tf =  tc.files;
-        const char *name = tf->name;
-        CHKV(make_test_tree(tf),
+        const char *name = tc.conf.root;
+        CHKV(make_test_tree(name, tf),
                 "failed to make dirtree for test case %s", name);
         CHKV(chk_test_tree(tf, &tc.conf),
                 "read-and-compare failed for test case %s", name);
@@ -710,46 +764,48 @@ static const char more_bigger_text[] =
 static TestCase tc_main_test_tree_ = {
         .conf = {
                 .root = "test_dir_tree",
+                //.root = "main_test_tree",
         },
         .files = (TestFile[]){
-                {"test_dir_tree", NULL},
-                {"test_dir_tree/dir0", NULL},
-                DIR0_CONTENT("test_dir_tree/dir0"),
-                {"test_dir_tree/emptydir", NULL},
-                {"test_dir_tree/emptyfile", ""},
-                {"test_dir_tree/file0", "content of file 0"},
-                {"test_dir_tree/file1", "content of file 1"},
-                {"test_dir_tree/later_dir", NULL},
-                {"test_dir_tree/later_dir/file0", "content of later file 0"},
-                {"test_dir_tree/later_dir/file1", "content of later file 1"},
-                {"test_dir_tree/later_dir/file3", "content of later file 3"},
-                {"test_dir_tree/link_to_dir0", NULL, "dir0"},
-                DIR0_CONTENT("test_dir_tree/link_to_dir0"),
-                {"test_dir_tree/link_to_dir01", NULL, "dir0/dir01"},
-                DIR01_CONTENT("test_dir_tree/link_to_dir01"),
-                {"test_dir_tree/link_to_empty_dir", NULL, "emptydir"},
-                {"test_dir_tree/link_to_link", NULL, "link_to_dir0"},
-                DIR0_CONTENT("test_dir_tree/link_to_link"),
-                {"test_dir_tree/more_bigger", more_bigger_text},
+                {"", NULL},
+                {"dir0", NULL},
+                DIR0_CONTENT("dir0"),
+                {"emptydir", NULL},
+                {"emptyfile", ""},
+                {"file0", "content of file 0"},
+                {"file1", "content of file 1"},
+                {"later_dir", NULL},
+                {"later_dir/file0", "content of later file 0"},
+                {"later_dir/file1", "content of later file 1"},
+                {"later_dir/file3", "content of later file 3"},
+                {"link_to_dir0", NULL, "dir0"},
+                DIR0_CONTENT("link_to_dir0"),
+                {"link_to_dir01", NULL, "dir0/dir01"},
+                DIR01_CONTENT("link_to_dir01"),
+                {"link_to_empty_dir", NULL, "emptydir"},
+                {"link_to_link", NULL, "link_to_dir0"},
+                DIR0_CONTENT("link_to_link"),
+                {"more_bigger", more_bigger_text},
                 {0},
         }
 };
 
 static TestCase tc_drop_files_without_suffix_ = {
         .conf = (ReadTreeConf){
+                .root = "test_endings_filter",
                 .accept_file = READ_TREE_ACCEPT_SUFFIX(".kept"),
                 .root = "test_endings_filter",
         },
         .files = (TestFile[]){
-                {"test_endings_filter"},
-                {"test_endings_filter/a.kept", "a"},
-                {"test_endings_filter/b.kept", "b"},
-                {"test_endings_filter/dir_not_dropped"},
-                {"test_endings_filter/dir_not_dropped/sub_a.kept", "aa"},
-                {"test_endings_filter/dir_not_dropped/sub_b.kept", "bb"},
-                {"test_endings_filter/dir_not_dropped/sub_dropped", "dd",
+                {"", NULL},
+                {"a.kept", "a"},
+                {"b.kept", "b"},
+                {"dir_not_dropped"},
+                {"dir_not_dropped/sub_a.kept", "aa"},
+                {"dir_not_dropped/sub_b.kept", "bb"},
+                {"dir_not_dropped/sub_dropped", "dd",
                         .expect_dropped = true},
-                {"test_endings_filter/dropped", "d",
+                {"dropped", "d",
                         .expect_dropped = true},
                 {0},
         }
@@ -757,19 +813,19 @@ static TestCase tc_drop_files_without_suffix_ = {
 
 static TestCase tc_drop_dirs_without_suffix_ = {
         .conf = (ReadTreeConf){
+                .root = "test_endings.kepd",
                 .accept_dir = READ_TREE_ACCEPT_SUFFIX(".kepd"),
                 .root = "test_endings.kepd",
         },
         .files = (TestFile[]){
-                {"test_endings.kepd"},
-                {"test_endings.kepd/drop.d", .expect_dropped = true},
-                {"test_endings.kepd/drop.d/orphan", "this file is never read",
+                {"", NULL},
+                {"drop.d", .expect_dropped = true},
+                {"drop.d/orphan", "this file is never read",
                         .expect_dropped = true},
-                {"test_endings.kepd/file_kept_without_suffix", "fkws"},
+                {"file_kept_without_suffix", "fkws"},
                 {0},
         }
 };
-
 
 int main(void)
 {
