@@ -275,17 +275,16 @@ static Stub_ next_stub_(const ReadTreeConf *conf, const char *dirname, DIR *dir)
         }
 
         Stub_ tde;
-        // FIX: use join_path?
-        int path_len = asprintf(&tde.path, "%s/%s", dirname, de->d_name);
-        if(0 > path_len)
-                PANIC_NOMEM();
+
+        // FIX: does join_path_ panic on ENOMEM?
+        tde.path = path_join_(dirname, de->d_name);
         tde.de_type = de_type_(tde.path, de);
 
         int name_len = strnlen(de->d_name, NAME_MAX + 1);
         if(name_len > NAME_MAX)
                 PANIC("filename under %s longer than %d bytes",
                         dirname, NAME_MAX);
-        tde.name = tde.path + path_len - name_len;
+        tde.name = tde.path + strlen(tde.path) - name_len;
 
         if(accept(conf, tde)) {
                 return tde;
