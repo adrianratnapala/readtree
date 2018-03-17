@@ -78,6 +78,7 @@ typedef struct {
         read_tree_accept_all_}
 
 struct ReadTreeConf {
+        char *root;
         AcceptClosure accept_dir, accept_file;
         const void *accept_dir_arg, *accept_file_arg;
 };
@@ -393,26 +394,25 @@ Error *fill_out_config_(ReadTreeConf *conf)
         return NULL;
 }
 
-Error *read_source_tree(
-        const ReadTreeConf *pconf,
-        const char *root,
-        Tree **ptree)
+Error *read_source_tree(const ReadTreeConf *pconf, Tree **ptree)
 {
-        ReadTreeConf conf = {0};
-        if(pconf)
-                conf = *pconf;
+        if(!pconf)
+                PANIC("ReadTreeConf is NULL");
+        ReadTreeConf conf = *pconf;
         fill_out_config_(&conf);
+        if(!conf.root)
+                PANIC("Configured root 'root' is null");
+        if(!(conf.root = strdup(conf.root)))
+                PANIC_NOMEM();
 
-        if(!root)
-                PANIC("'root' is null");
         if(!ptree)
                 PANIC("'ptree' is null");
-        Tree t = {.path = strdup(root)};
+        Tree t = {.path = conf.root};
         if(!t.path) {
                 PANIC_NOMEM();
         }
         Error *err = NULL;
-        t.sub = read_tree_(&conf, root, &t.nsub, &err);
+        t.sub = read_tree_(&conf, conf.root, &t.nsub, &err);
         if(err) {
                 return err;
         }
@@ -603,9 +603,8 @@ static int noerror(Error *err) {
 
 static int chk_test_tree(TestFile *tf, const ReadTreeConf *conf)
 {
-        const char *name = tf->name;
         Tree *tree;
-        CHK(noerror(read_source_tree(conf, name, &tree)));
+        CHK(noerror(read_source_tree(conf, &tree)));
 
         CHK(tf = chk_tree_equal(tf, tree));
         for(; tf->expect_dropped; tf++) { }
@@ -709,6 +708,9 @@ static const char more_bigger_text[] =
         {R"/link", more_bigger_text, "../more_bigger"}
 
 static TestCase tc_main_test_tree_ = {
+        .conf = {
+                .root = "test_dir_tree",
+        },
         .files = (TestFile[]){
                 {"test_dir_tree", NULL},
                 {"test_dir_tree/dir0", NULL},
@@ -736,6 +738,7 @@ static TestCase tc_main_test_tree_ = {
 static TestCase tc_drop_files_without_suffix_ = {
         .conf = (ReadTreeConf){
                 .accept_file = READ_TREE_ACCEPT_SUFFIX(".kept"),
+                .root = "test_endings_filter",
         },
         .files = (TestFile[]){
                 {"test_endings_filter"},
@@ -755,6 +758,7 @@ static TestCase tc_drop_files_without_suffix_ = {
 static TestCase tc_drop_dirs_without_suffix_ = {
         .conf = (ReadTreeConf){
                 .accept_dir = READ_TREE_ACCEPT_SUFFIX(".kepd"),
+                .root = "test_endings.kepd",
         },
         .files = (TestFile[]){
                 {"test_endings.kepd"},
@@ -766,19 +770,9 @@ static TestCase tc_drop_dirs_without_suffix_ = {
         }
 };
 
-int test_null_config(void)
-{
-         TestFile *tf =  tc_main_test_tree_.files;
-        CHKV(make_test_tree(tf),
-                "failed to make dirtree for NULL-config test case.");
-        CHKV(chk_test_tree(tf, &tc_main_test_tree_.conf),
-                "read-and-compare failed for NULL-config test-case.");
-        PASS();
-}
 
 int main(void)
 {
-        test_null_config();
         test_read_tree_case(tc_main_test_tree_);
         test_read_tree_case(tc_drop_files_without_suffix_);
         test_read_tree_case(tc_drop_dirs_without_suffix_);
