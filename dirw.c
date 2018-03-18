@@ -834,7 +834,6 @@ static TestCase tc_drop_dirs_without_suffix_ = {
         .conf = (ReadTreeConf){
                 .root = "test_endings.kepd",
                 .accept_dir = READ_TREE_ACCEPT_SUFFIX(".kepd"),
-                .root = "test_endings.kepd",
         },
         .files = (TestFile[]){
                 {"", NULL},
