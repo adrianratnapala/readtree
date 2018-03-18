@@ -245,15 +245,14 @@ static bool reject_early(const ReadTreeConf *conf, const char *name)
         return *name == '.';
 }
 
-static bool accept(const ReadTreeConf *conf, Stub_ stub)
+static bool accept(const ReadTreeConf *conf, Stub_ stub, Error **perr)
 {
         AcceptClosure closure;
         switch(stub.de_type) {
         case DT_DIR: closure = conf->accept_dir; break;
         case DT_REG: closure = conf->accept_file; break;
         default:
-                // FIX: we rely on this error being caught later, but code is
-                // clearer if we don't do that.
+                *perr = IO_ERROR(stub.path, EINVAL, "Unknown filetype");
                 return false;
         }
 
@@ -269,18 +268,24 @@ static int qsort_fun_(const void *va, const void *vb, void *arg)
         return strcmp(name_a, name_b);
 }
 
-static Stub_ next_stub_(const ReadTreeConf *conf, const char *dirname, DIR *dir)
+static Error *next_stub_(
+        const ReadTreeConf *conf,
+        Stub_ *pstub,
+        const char *dirname,
+        DIR *dir)
 {
         struct dirent *de;
         if(!(de = readdir(dir))) {
-                if(!errno)
-                        return (Stub_){0};
+                if(!errno) {
+                        *pstub = (Stub_){0};
+                        return NULL;
+                }
                 IO_PANIC(dirname, errno,
                         "readdir() failed after opendir()");
         }
 
         if(reject_early(conf, de->d_name)) {
-                return next_stub_(conf, dirname, dir);
+                return next_stub_(conf, pstub, dirname, dir);
         }
 
         Stub_ tde;
@@ -294,11 +299,18 @@ static Stub_ next_stub_(const ReadTreeConf *conf, const char *dirname, DIR *dir)
                         dirname, NAME_MAX);
         tde.name = tde.path + strlen(tde.path) - name_len;
 
-        if(accept(conf, tde)) {
-                return tde;
+        Error *err = NULL;
+        if(accept(conf, tde, &err)) {
+                assert(!err);
+                *pstub = tde;
+                return NULL;
         }
         free(tde.path);
-        return next_stub_(conf, dirname, dir);
+        if(err) {
+                *pstub = (Stub_){0};
+                return err;
+        }
+        return next_stub_(conf, pstub, dirname, dir);
 }
 
 
@@ -316,6 +328,7 @@ static Error *load_stubv_(
         }
 
         Stub_ *stubv = NULL;
+        Error *err = NULL;
         int used = 0, alloced = 0;
 
         for(;;) {
@@ -329,18 +342,23 @@ static Error *load_stubv_(
                         }
                 }
 
-                Stub_ tde = next_stub_(conf, dirname, dir);
-                if(!tde.path)
+                Stub_ stub;
+                err = next_stub_(conf, &stub, dirname, dir);
+                if(!stub.path)
                         break;
 
                 assert(used < alloced);
-                stubv[used++] = tde;
-                if(used >= MAX_IN_DIR)
-                        PANIC("Directory %s has > %d entries!",
+                stubv[used++] = stub;
+                if(used >= MAX_IN_DIR) {
+                        err = ERROR("Directory %s has > %d entries!",
                                 dirname, MAX_IN_DIR);
+                        used = 0;
+                }
         }
 
 
+        // Clean-up stage, on the good and bad paths both.  Bad (err != NULL)
+        // implies used == 0, but sed == 0 can also happen on the good path.
         LOG_F(dbg_log, "trimming alloc to %d dirent ptrs", used);
         stubv = realloc(stubv, used * sizeof stubv[0]);
         if(!stubv && used) {
@@ -351,7 +369,7 @@ static Error *load_stubv_(
         *pstubv = stubv;
         *pnstub = used;
         closedir(dir);
-        return NULL;
+        return err;
 }
 
 static Tree *read_tree_(
@@ -468,6 +486,9 @@ typedef const struct TestFile {
         const char *content;
         const char *symlink;
         bool expect_dropped;
+        bool explicit_mode;
+        mode_t mode;
+        unsigned int dev_major, dev_minor;
 } TestFile;
 
 typedef const struct{
@@ -534,7 +555,61 @@ static Error *make_test_symlink_(const char *root, TestFile *tf)
         return err;
 }
 
+static Error *make_node_(const char *path, mode_t mode, dev_t dev)
+{
 
+        if(!mknod(path, mode, dev)) {
+                return NULL;
+        }
+        if(errno != EEXIST) {
+                return IO_ERROR(path, errno,
+                        "Test mknod(mode = %o, major=%s, minor=%s)",
+                        mode, major(dev), minor(dev));
+        }
+
+        struct stat st;
+        if(stat(path, &st)) {
+                return IO_ERROR(path, errno,
+                        "Can't stat existing test after "
+                        "mknod(mode = %o, major=%s, minor=%s)",
+                        mode, major(dev), minor(dev));
+        }
+
+        if(st.st_mode != (mode & ~TEST_UMASK)) {
+                return IO_ERROR(path, EEXIST,
+                        "Existing node with unexpected mode %o != %o",
+                        st.st_mode, mode);
+        }
+
+        dev_t sdev = st.st_rdev;
+        if(major(sdev) != major(dev)) {
+                return IO_ERROR(path, EEXIST,
+                        "Existing node with unexpected dev major type %d != %d",
+                        major(sdev) != major(dev));
+        }
+        if(minor(sdev) != minor(dev)) {
+                return IO_ERROR(path, EEXIST,
+                        "Existing node with unexpected dev minor type %d != %d",
+                        minor(sdev) != minor(dev));
+        }
+
+        // Existing node seems to match what we want.
+        return NULL;
+}
+
+
+static Error *make_test_node_(const char *root, TestFile *tf)
+{
+        assert(tf);
+        assert(tf->explicit_mode);
+        assert(!tf->symlink);
+
+        char *path = path_join_(root, tf->path);
+        dev_t dev = makedev(tf->dev_major, tf->dev_minor);
+        Error *err = make_node_(path, tf->mode, dev);
+        free(path);
+        return err;
+}
 
 static Error *make_test_file_(const char *root, TestFile *tf)
 {
@@ -623,7 +698,9 @@ int make_test_tree(const char *root, TestFile *tf0)
         for(TestFile *tf = tf0; tf->path; tf++) {
                 Error *e;
                 //CHK(*tf->path);
-                if(tf->symlink != NULL)
+                if(tf->explicit_mode)
+                        e = make_test_node_(root, tf);
+                else if(tf->symlink != NULL)
                         e = make_test_symlink_(root, tf);
                 else if(tf->content == NULL)
                         e = make_test_dir_(root, tf);
@@ -853,13 +930,42 @@ static TestCase tc_drop_dirs_without_suffix_ = {
         }
 };
 
+static TestCase tc_bad_fifo_in_tree = {
+        .conf = (ReadTreeConf){ .root = "fifo_in_tree", },
+        .files = (TestFile[]){
+                {"", NULL},
+                {"bad_fifo", .explicit_mode = true, .mode = 0666 | S_IFIFO},
+                {0},
+        }
+};
+
+static int test_bad_case(TestCase tc)
+{
+        TestFile *tf =  tc.files;
+        const char *name = tc.conf.root;
+        CHKV(make_test_tree(name, tf),
+                "failed to make dirtree for test case %s", name);
+
+        Tree *tree = NULL;
+        Error *err = NULL;
+        // FIX: remove the word source!
+        CHKV(err = read_source_tree(&tc.conf, &tree),
+                "Expected error missing in test tree %s", name);
+        destroy_error(err);
+        CHKV(!tree, "read_source_tree returned both a tree and an error");
+        destroy_src_tree(tree);
+
+        PASS();
+}
+
 int main(void)
 {
         test_read_tree_case(tc_main_test_tree_);
         test_read_tree_case(tc_drop_files_without_suffix_);
         test_read_tree_case(tc_drop_dirs_without_suffix_);
 
-        // FIX: we need bad-path tests, e.g. cyclic symlinks, FIFOs in the tree
+        test_bad_case(tc_bad_fifo_in_tree);
+
         return zunit_report();
 }
 
