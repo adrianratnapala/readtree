@@ -35,6 +35,7 @@
 
 typedef struct Tree {
         char *full_path;
+        const char *path;
 
         unsigned size;
         char *content;
@@ -188,14 +189,22 @@ static unsigned char de_type_(const char *path, const struct dirent *de)
         }
 }
 
-static Error *from_stub_(const ReadTreeConf *conf, Tree *pr, const Stub_ stub)
+static Error *from_stub_(
+        const ReadTreeConf *conf,
+        unsigned root_len,
+        Tree *pr,
+        const Stub_ stub)
 {
         assert(pr);
         const char *name = stub.name;
         if(!name)
                 PANIC("NULL name from scandir of %s!", stub.path);
 
-        Tree r = {.full_path = stub.path};
+        assert(stub.path[root_len] == '/');
+        Tree r = {
+                .full_path = stub.path,
+                .path = stub.path + root_len + 1,
+        };
         Error *err = NULL;
 
         switch(stub.de_type) {
@@ -362,9 +371,18 @@ static Tree *read_tree_(
         assert(stub || !n);
         struct Tree *subv = MALLOC(sizeof(Tree)*n);
 
+        // FIX: check this earlier.
         int nconverted;
+        unsigned root_len = strnlen(conf->root, PATH_MAX + 1);
+        if(root_len > PATH_MAX) {
+                PANIC("conf->root is too long");
+        }
         for(nconverted = 0; nconverted < n; nconverted++) {
-                err = from_stub_(conf, subv+nconverted, stub[nconverted]);
+                err = from_stub_(
+                        conf,
+                        root_len,
+                        subv + nconverted,
+                        stub[nconverted]);
                 if(err)
                         break;
         }
@@ -420,7 +438,10 @@ Error *read_source_tree(const ReadTreeConf *pconf, Tree **ptree)
 
         if(!ptree)
                 PANIC("'ptree' is null");
-        Tree t = {.full_path = conf.root};
+        Tree t = {
+                .full_path = conf.root,
+                .path = conf.root + strlen(conf.root),
+        };
         if(!t.full_path) {
                 PANIC_NOMEM();
         }
@@ -630,13 +651,14 @@ static TestFile *chk_tree_equal(const char *root, TestFile *tfp, Tree *tree) {
         LOG_F(dbg_log, "Comparing: %s with %s", tf.path, tree->full_path);
 
         {
-                char *tf_path;
+                char *full_path;
                 if(*tf.path)
-                        CHK(0 < asprintf(&tf_path, "%s/%s", root, tf.path));
+                        CHK(0 < asprintf(&full_path, "%s/%s", root, tf.path));
                 else
-                        tf_path = strdup(root);
-                CHK_STR_EQ(tree->full_path, tf_path);
-                free(tf_path);
+                        full_path = strdup(root);
+                CHK_STR_EQ(tree->full_path, full_path);
+                free(full_path);
+                CHK_STR_EQ(tree->path, tf.path);
         }
         if(tf.content) {
                 CHK_STR_EQ(tf.content, tree->content);
