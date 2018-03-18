@@ -34,7 +34,7 @@
 // FIX: separate test binary from libreadtree
 
 typedef struct Tree {
-        char *path;
+        char *full_path;
 
         unsigned size;
         char *content;
@@ -195,21 +195,21 @@ static Error *from_stub_(const ReadTreeConf *conf, Tree *pr, const Stub_ stub)
         if(!name)
                 PANIC("NULL name from scandir of %s!", stub.path);
 
-        Tree r = {.path = stub.path};
+        Tree r = {.full_path = stub.path};
         Error *err = NULL;
 
         switch(stub.de_type) {
         case DT_DIR:
-                r.sub = read_tree_(conf, r.path, &r.nsub, &err);
+                r.sub = read_tree_(conf, r.full_path, &r.nsub, &err);
                 break;
         case DT_LNK:
-                r.content = read_file_(r.path, &r.size, &err);
+                r.content = read_file_(r.full_path, &r.size, &err);
                 break;
         case DT_REG:
-                r.content = read_file_(r.path, &r.size, &err);
+                r.content = read_file_(r.full_path, &r.size, &err);
                 break;
         default:
-                return IO_ERROR(r.path, EINVAL,
+                return IO_ERROR(r.full_path, EINVAL,
                 "Reading something that is neither a file nor directory.");
         }
 
@@ -221,7 +221,7 @@ static Error *from_stub_(const ReadTreeConf *conf, Tree *pr, const Stub_ stub)
 
 static void destroy_tree_(Tree t)
 {
-        free(t.path);
+        free(t.full_path);
         free(t.content);
         for(unsigned k = 0; k < t.nsub; k++) {
                 destroy_tree_(t.sub[k]);
@@ -420,8 +420,8 @@ Error *read_source_tree(const ReadTreeConf *pconf, Tree **ptree)
 
         if(!ptree)
                 PANIC("'ptree' is null");
-        Tree t = {.path = conf.root};
-        if(!t.path) {
+        Tree t = {.full_path = conf.root};
+        if(!t.full_path) {
                 PANIC_NOMEM();
         }
         Error *err = NULL;
@@ -625,9 +625,9 @@ static TestFile *chk_tree_equal(const char *root, TestFile *tfp, Tree *tree) {
         }
 
         CHK(tf.path);
-        CHK(tree->path);
+        CHK(tree->full_path);
 
-        LOG_F(dbg_log, "Comparing: %s with %s", tf.path, tree->path);
+        LOG_F(dbg_log, "Comparing: %s with %s", tf.path, tree->full_path);
 
         {
                 char *tf_path;
@@ -635,7 +635,7 @@ static TestFile *chk_tree_equal(const char *root, TestFile *tfp, Tree *tree) {
                         CHK(0 < asprintf(&tf_path, "%s/%s", root, tf.path));
                 else
                         tf_path = strdup(root);
-                CHK_STR_EQ(tree->path, tf_path);
+                CHK_STR_EQ(tree->full_path, tf_path);
                 free(tf_path);
         }
         if(tf.content) {
