@@ -166,7 +166,7 @@ error:
         return NULL;
 }
 
-static unsigned char de_type_(const char *path, const struct dirent *de)
+static int de_type_(const char *path, const struct dirent *de)
 {
         unsigned char de_type = de->d_type;
         if(de_type != DT_UNKNOWN && de_type != DT_LNK)
@@ -174,8 +174,13 @@ static unsigned char de_type_(const char *path, const struct dirent *de)
 
         struct stat st;
         if(0 >  stat(path, &st)) {
-                return DT_UNKNOWN;
+                int ern = errno;
+                LOG_F(err_log, "stat(%s) failed: %s",
+                        path, strerror(ern));
+                errno = ern;
+                return -1;
         }
+        LOG_F(dbg_log, "stat(%s) returns mode %0x", path, S_IFBLK);
         switch(st.st_mode  & S_IFMT) {
         case S_IFBLK: return DT_BLK;
         case S_IFCHR: return DT_CHR;
@@ -289,9 +294,16 @@ static Error *next_stub_(
         }
 
         Stub_ tde;
+        Error *err = NULL;
 
         tde.path = path_join_(dirname, de->d_name);
-        tde.de_type = de_type_(tde.path, de);
+        int de_type = de_type_(tde.path, de);
+        if(de_type < 0) {
+                err = IO_ERROR(tde.path, errno,
+                        "While getting file-type of directory entry");
+                goto done;
+        }
+        tde.de_type = de_type;
 
         int name_len = strnlen(de->d_name, NAME_MAX + 1);
         if(name_len > NAME_MAX)
@@ -299,13 +311,14 @@ static Error *next_stub_(
                         dirname, NAME_MAX);
         tde.name = tde.path + strlen(tde.path) - name_len;
 
-        Error *err = NULL;
         if(accept(conf, tde, &err)) {
                 assert(!err);
                 *pstub = tde;
                 return NULL;
         }
         free(tde.path);
+
+done:
         if(err) {
                 *pstub = (Stub_){0};
                 return err;
@@ -959,7 +972,6 @@ static TestCase tc_bad_broken_link_ = {
         }
 };
 
-/* FIX: this is doing odd things
 static TestCase tc_bad_cyclic_link_ = {
         .conf = (ReadTreeConf){ .root = "bad_cyclic_link", },
         .files = (TestFile[]){
@@ -968,7 +980,6 @@ static TestCase tc_bad_cyclic_link_ = {
                 {0},
         }
 };
-*/
 
 static int test_bad_case(TestCase tc)
 {
@@ -995,6 +1006,7 @@ int main(void)
         test_read_tree_case(tc_drop_files_without_suffix_);
         test_read_tree_case(tc_drop_dirs_without_suffix_);
 
+        test_bad_case(tc_bad_cyclic_link_);
         test_bad_case(tc_bad_broken_link_);
         test_bad_case(tc_bad_fifo_in_tree_);
         test_bad_case(tc_bad_no_permission_);
