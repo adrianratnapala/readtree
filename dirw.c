@@ -285,7 +285,6 @@ static Stub_ next_stub_(const ReadTreeConf *conf, const char *dirname, DIR *dir)
 
         Stub_ tde;
 
-        // FIX: does join_path_ panic on ENOMEM?
         tde.path = path_join_(dirname, de->d_name);
         tde.de_type = de_type_(tde.path, de);
 
@@ -524,8 +523,6 @@ static Error *make_test_symlink_(const char *root, TestFile *tf)
 
         char *src = path_join_(root, tf->path);
         const char *tgt = tf->symlink;
-        if(!src || !tgt)
-                PANIC_NOMEM();
 
         LOG_F(dbg_log, "Making test-tgt symlink %s -> %s", src, tgt);
         Error *err = make_symlink_(src, tgt);
