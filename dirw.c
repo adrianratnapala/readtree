@@ -370,12 +370,8 @@ static Tree *read_tree_(
         assert(stub || !n);
         struct Tree *subv = MALLOC(sizeof(Tree)*n);
 
-        // FIX: check this earlier.
         int nconverted;
-        unsigned root_len = strnlen(conf->root, PATH_MAX + 1);
-        if(root_len > PATH_MAX) {
-                PANIC("conf->root is too long");
-        }
+        unsigned root_len = strlen(conf->root);
         for(nconverted = 0; nconverted < n; nconverted++) {
                 err = from_stub_(
                         conf,
@@ -427,11 +423,16 @@ Error *fill_out_config_(ReadTreeConf *conf)
 Error *read_source_tree(const ReadTreeConf *pconf, Tree **ptree)
 {
         if(!pconf)
-                PANIC("ReadTreeConf is NULL");
+                return ERROR("ReadTreeConf is NULL");
         ReadTreeConf conf = *pconf;
         fill_out_config_(&conf);
         if(!conf.root)
-                PANIC("Configured root 'root' is null");
+                return ERROR("Configured ReadTree 'root' is null");
+        size_t root_len = strnlen(conf.root, PATH_MAX + 1);
+        if(root_len > PATH_MAX)
+                return ERROR("Configured ReadTree 'root' is %lu bytes.  "
+                             "Max length is %u", root_len, (unsigned)PATH_MAX);
+
         if(!(conf.root = strdup(conf.root)))
                 PANIC_NOMEM();
 
