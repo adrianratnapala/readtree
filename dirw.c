@@ -461,6 +461,8 @@ Error *read_source_tree(const ReadTreeConf *pconf, Tree **ptree)
 }
 
 
+#define TEST_UMASK 022
+
 typedef const struct TestFile {
         const char *path;
         const char *content;
@@ -563,6 +565,7 @@ static Error *make_test_file_(const char *root, TestFile *tf)
 static Error *make_dir_(const char *path)
 {
         const int mkdir_mode = 0755;
+        assert((mkdir_mode & ~TEST_UMASK) == mkdir_mode);
         assert(path && *path);
         if(!mkdir(path, mkdir_mode)) {
                 return NULL;
@@ -615,6 +618,7 @@ static int noerror(Error *err) {
 int make_test_tree(const char *root, TestFile *tf0)
 {
         //CHK(noerror(make_dir_(root)));
+        mode_t old_umask = umask(TEST_UMASK);
 
         for(TestFile *tf = tf0; tf->path; tf++) {
                 Error *e;
@@ -633,7 +637,11 @@ int make_test_tree(const char *root, TestFile *tf0)
                 goto fail;
         }
 
-        PASS_QUIETLY();
+        CHK(TEST_UMASK == umask(old_umask));
+        return 1;
+fail:
+        umask(old_umask);
+        return 0;
 }
 
 static TestFile *chk_tree_equal(const char *root, TestFile *tfp, Tree *tree) {
