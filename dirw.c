@@ -931,7 +931,7 @@ static TestCase tc_drop_dirs_without_suffix_ = {
         }
 };
 
-static TestCase tc_bad_fifo_in_tree = {
+static TestCase tc_bad_fifo_in_tree_ = {
         .conf = (ReadTreeConf){ .root = "fifo_in_tree", },
         .files = (TestFile[]){
                 {"", NULL},
@@ -939,6 +939,36 @@ static TestCase tc_bad_fifo_in_tree = {
                 {0},
         }
 };
+
+static TestCase tc_bad_no_permission_ = {
+        .conf = (ReadTreeConf){ .root = "bad_no_permission", },
+        .files = (TestFile[]){
+                {"", NULL},
+                {"no_permssion",
+                        .explicit_mode = true, .mode = 0000 | S_IFREG},
+                {0},
+        }
+};
+
+static TestCase tc_bad_broken_link_ = {
+        .conf = (ReadTreeConf){ .root = "bad_broken_link", },
+        .files = (TestFile[]){
+                {"", NULL},
+                {"bad_broken_link", .symlink="non_existent_target"},
+                {0},
+        }
+};
+
+/* FIX: this is doing odd things
+static TestCase tc_bad_cyclic_link_ = {
+        .conf = (ReadTreeConf){ .root = "bad_cyclic_link", },
+        .files = (TestFile[]){
+                {"", NULL},
+                {"bad_cyclic_link", .symlink="bad_cyclic_link"},
+                {0},
+        }
+};
+*/
 
 static int test_bad_case(TestCase tc)
 {
@@ -965,7 +995,9 @@ int main(void)
         test_read_tree_case(tc_drop_files_without_suffix_);
         test_read_tree_case(tc_drop_dirs_without_suffix_);
 
-        test_bad_case(tc_bad_fifo_in_tree);
+        test_bad_case(tc_bad_broken_link_);
+        test_bad_case(tc_bad_fifo_in_tree_);
+        test_bad_case(tc_bad_no_permission_);
 
         return zunit_report();
 }
