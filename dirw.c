@@ -12,7 +12,7 @@
 #include <time.h>
 #include <unistd.h>
 
-#include <linux/limits.h> // FIX: handle NAME_MAX better.
+#include <linux/limits.h>
 #include <sys/sysmacros.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -670,7 +670,6 @@ static Error *make_dir_(const char *path)
                                 "readtree test-case dir already exists, "
                                 "but is not a directory!");
                 }
-                // FIX: this must be run with a sufficiently permissive umask.
                 else if((st.st_mode & 0777) != mkdir_mode) {
                         return IO_ERROR(path, ern,
                                 "readtree test-case dir already exists, "
