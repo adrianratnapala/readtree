@@ -795,7 +795,7 @@ static int test_read_tree_case(TestCase tc)
                 "failed to make dirtree for test case %s", name);
         CHKV(chk_test_tree(tf, &tc.conf),
                 "read-and-compare failed for test case %s", name);
-        PASS();
+        PASSV("%s(%s)", __func__, name);
 }
 
 static const char more_bigger_text[] =
@@ -994,7 +994,7 @@ static int test_bad_case(TestCase tc)
         CHKV(!tree, "read_tree returned both a tree and an error");
         destroy_src_tree(tree);
 
-        PASS();
+        PASSV("%s(%s)", __func__, name);
 }
 
 int main(void)
