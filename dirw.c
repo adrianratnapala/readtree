@@ -662,24 +662,23 @@ static Error *make_dir_(const char *path)
         }
         int ern = errno;
 
-        // FIX: invert the if.
         struct stat st;
-        if(ern == EEXIST && !stat(path, &st)) {
-                if((st.st_mode & S_IFMT) != S_IFDIR) {
-                        return IO_ERROR(path, ern,
-                                "readtree test-case dir already exists, "
-                                "but is not a directory!");
-                }
-                else if((st.st_mode & 0777) != mkdir_mode) {
-                        return IO_ERROR(path, ern,
-                                "readtree test-case dir already exists, "
-                                "with permissions mode %o != %o",
-                                st.st_mode & 0777, mkdir_mode);
-                }
-                return NULL;
+        if(ern != EEXIST)
+                return IO_ERROR(path, ern, "Creating readtree test-case dir");
+        if(stat(path, &st))
+                return IO_ERROR(path, ern, "Statting readtree test-case dir");
+        if((st.st_mode & S_IFMT) != S_IFDIR) {
+                return IO_ERROR(path, ern,
+                        "readtree test-case dir already exists, "
+                        "but is not a directory!");
         }
-
-        return IO_ERROR(path, ern, "Creating readtree test-case dir");
+        else if((st.st_mode & 0777) != mkdir_mode) {
+                return IO_ERROR(path, ern,
+                        "readtree test-case dir already exists, "
+                        "with permissions mode %o != %o",
+                        st.st_mode & 0777, mkdir_mode);
+        }
+        return NULL;
 }
 
 
