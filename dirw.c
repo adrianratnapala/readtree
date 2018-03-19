@@ -111,7 +111,7 @@ static char *read_file_(const char *path, unsigned *psize, Error **perr)
         char *block = NULL;
         int fd = open(path, O_RDONLY);
         if(fd < 0) {
-                *perr = IO_ERROR(path, errno, "Opening source file");
+                *perr = IO_ERROR(path, errno, "Opening file");
                 return NULL;
         }
 
@@ -125,7 +125,7 @@ static char *read_file_(const char *path, unsigned *psize, Error **perr)
                 assert(block_size - used > 1);
                 ssize_t n = read(fd, block + used, block_size - used - 1);
                 if(n < 0) {
-                        *perr = IO_ERROR(path, errno, "Reading source file");
+                        *perr = IO_ERROR(path, errno, "Reading file");
                         goto error;
                 }
                 //LOG_F(dbg_log, "Read %ld bytes from %s", n, path);
@@ -139,7 +139,7 @@ static char *read_file_(const char *path, unsigned *psize, Error **perr)
                 }
 
                 if((block_size *= 2) > UINT_MAX) {
-                        *perr = IO_ERROR(path, EINVAL, "Reading too big a source file");
+                        *perr = IO_ERROR(path, EINVAL, "Reading too big a file");
                         goto error;
                 }
 
@@ -151,7 +151,7 @@ eof:
         block[used] = 0;
         do close(fd); while(errno == EINTR);
         if(errno) {
-                *perr = IO_ERROR(path, errno, "Closing source file");
+                *perr = IO_ERROR(path, errno, "Closing file");
                 free(block);
                 return NULL;
         }
@@ -452,7 +452,7 @@ Error *fill_out_config_(ReadTreeConf *conf)
         return NULL;
 }
 
-Error *read_source_tree(const ReadTreeConf *pconf, Tree **ptree)
+Error *read_tree(const ReadTreeConf *pconf, Tree **ptree)
 {
         if(!pconf)
                 return ERROR("ReadTreeConf is NULL");
@@ -775,7 +775,7 @@ fail:
 static int chk_test_tree(TestFile *tf, const ReadTreeConf *conf)
 {
         Tree *tree;
-        CHK(noerror(read_source_tree(conf, &tree)));
+        CHK(noerror(read_tree(conf, &tree)));
 
         CHK(tf = chk_tree_equal(conf->root, tf, tree));
         for(; tf->expect_dropped; tf++) { }
@@ -989,11 +989,10 @@ static int test_bad_case(TestCase tc)
 
         Tree *tree = NULL;
         Error *err = NULL;
-        // FIX: remove the word source!
-        CHKV(err = read_source_tree(&tc.conf, &tree),
+        CHKV(err = read_tree(&tc.conf, &tree),
                 "Expected error missing in test tree %s", name);
         destroy_error(err);
-        CHKV(!tree, "read_source_tree returned both a tree and an error");
+        CHKV(!tree, "read_tree returned both a tree and an error");
         destroy_src_tree(tree);
 
         PASS();
