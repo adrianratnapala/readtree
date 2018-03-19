@@ -156,7 +156,7 @@ eof:
                 return NULL;
         }
         *psize = used;
-        LOG_F(dbg_log, "Successfully read file %s (%u bytes).", path, *psize);
+        //LOG_F(dbg_log, "Successfully read file %s (%u bytes).", path, *psize);
         return block;
 
 error:
@@ -175,12 +175,11 @@ static int de_type_(const char *path, const struct dirent *de)
         struct stat st;
         if(0 >  stat(path, &st)) {
                 int ern = errno;
-                LOG_F(err_log, "stat(%s) failed: %s",
-                        path, strerror(ern));
+                //LOG_F(err_log, "stat(%s) failed: %s", path, strerror(ern));
                 errno = ern;
                 return -1;
         }
-        LOG_F(dbg_log, "stat(%s) returns mode %0x", path, S_IFBLK);
+        //LOG_F(dbg_log, "stat(%s) returns mode %0x", path, S_IFBLK);
         switch(st.st_mode  & S_IFMT) {
         case S_IFBLK: return DT_BLK;
         case S_IFCHR: return DT_CHR;
@@ -349,7 +348,7 @@ static Error *load_stubv_(
                 if(used == alloced) {
                         if(!(alloced *= 2))
                                 alloced = 1;
-                        LOG_F(dbg_log, "allocating %d dirent ptrs", alloced);
+                        //LOG_F(dbg_log, "allocating %d dirent ptrs", alloced);
                         stubv = realloc(stubv, alloced * sizeof stubv[0]);
                         if(!stubv) {
                                 PANIC_NOMEM();
@@ -373,7 +372,7 @@ static Error *load_stubv_(
 
         // Clean-up stage, on the good and bad paths both.  Bad (err != NULL)
         // implies used == 0, but sed == 0 can also happen on the good path.
-        LOG_F(dbg_log, "trimming alloc to %d dirent ptrs", used);
+        //LOG_F(dbg_log, "trimming alloc to %d dirent ptrs", used);
         stubv = realloc(stubv, used * sizeof stubv[0]);
         if(!stubv && used) {
                 PANIC_NOMEM();
@@ -563,7 +562,7 @@ static Error *make_test_symlink_(const char *root, TestFile *tf)
         char *src = path_join_(root, tf->path);
         const char *tgt = tf->symlink;
 
-        LOG_F(dbg_log, "Making test-tgt symlink %s -> %s", src, tgt);
+        //LOG_F(dbg_log, "Making test-tgt symlink %s -> %s", src, tgt);
         Error *err = make_symlink_(src, tgt);
         free(src);
 
@@ -744,7 +743,7 @@ static TestFile *chk_tree_equal(const char *root, TestFile *tfp, Tree *tree) {
         CHK(tf.path);
         CHK(tree->full_path);
 
-        LOG_F(dbg_log, "Comparing: %s with %s", tf.path, tree->full_path);
+        //LOG_F(dbg_log, "Comparing: %s with %s", tf.path, tree->full_path);
 
         {
                 char *full_path;
