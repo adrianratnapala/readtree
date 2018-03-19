@@ -30,11 +30,13 @@
 #define FAIL(...) CHKV(0, __VA_ARGS__)
 #define WRN(...) wrn( 0, __FILE__, __LINE__, __func__, __VA_ARGS__)
 
-#define PASS()                   \
-        return pass( __func__ ); \
-        goto fail;               \
-        fail:                    \
+#define PASSV(...)                \
+        return pass(__VA_ARGS__); \
+        goto fail;                \
+        fail:                     \
         return 0
+
+#define PASS() PASSV(__func__)
 
 #define PASS_ONLY()              \
         return pass( __func__ ); \
@@ -98,9 +100,14 @@ inline static int wrn(int pass, const char *file, int line, const char *test,
         return fail(ZUNIT_ANSI_COLOUR(31, "WARNING:"), file, line, test, fmt, va);
 }
 
-
-inline static int pass(const char *test) {
-        printf(ZUNIT_ANSI_COLOUR(32, "passed:")" %s\n", test);
+CHECK_FMT(1)
+inline static int pass(const char *test, ...) {
+        fputs(ZUNIT_ANSI_COLOUR(32, "passed:")" ", stdout);
+        va_list va;
+        va_start(va, test);
+        vprintf(test, va);
+        va_end(va);
+        putchar('\n');
         zunit_npass++;
         return 1;
 }
