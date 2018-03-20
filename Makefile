@@ -1,13 +1,20 @@
 B=b
 CFLAGS=-std=c99 -Wall -Werror -g -O0
 LDFLAGS=-L $(B)
-LDLIBS=-lelm
+LDLIBS=-lelm -lreadtree
 
-test: $B $B/dirw
-	cd $B && ./dirw
+all: test
+
+test: $B $B/test_readtree
+	cd $B && ./test_readtree
 
 
-$B/dirw: $B/libelm.a
+$B/test_readtree: $B/test_readtree.o $B/libreadtree.a $B/libelm.a
+
+$B/libreadtree: readtree.c
+
+$B/lib%.a: $B/%.o
+	ar rcs $@ $^
 
 $B/%.o: %.c
 	$(CC) -c $< $(CPPFLAGS) $(CFLAGS) -o $@
