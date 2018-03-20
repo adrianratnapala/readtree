@@ -27,7 +27,7 @@ typedef struct {
 } ReadTreeConf;
 
 extern Error *read_tree(const ReadTreeConf *pconf, Tree **ptree);
-extern void destroy_src_tree(Tree *tree);
+extern void destroy_tree(Tree *tree);
 
 extern bool read_tree_accept_all_(
         const void *arg,

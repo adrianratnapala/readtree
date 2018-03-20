@@ -403,7 +403,7 @@ static Tree *read_tree_(
         return subv;
 }
 
-void destroy_src_tree(Tree *tree)
+void destroy_tree(Tree *tree)
 {
         if(!tree)
                 return;

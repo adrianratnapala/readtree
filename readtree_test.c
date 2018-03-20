@@ -338,8 +338,7 @@ static int chk_test_tree(TestFile *tf, const ReadTreeConf *conf)
         CHKV(tf->path == NULL, "Expected files/dirs missing from tree read: "
                          "%s, ...", tf->path);
 
-        // FIX: remove `src` from the src
-        destroy_src_tree(tree);
+        destroy_tree(tree);
 
         PASS_QUIETLY();
 }
@@ -549,7 +548,7 @@ static int test_bad_case(TestCase tc)
                 "Expected error missing in test tree %s", name);
         destroy_error(err);
         CHKV(!tree, "read_tree returned both a tree and an error");
-        destroy_src_tree(tree);
+        destroy_tree(tree);
 
         PASSV("%s(%s)", __func__, name);
 }
