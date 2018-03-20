@@ -5,10 +5,10 @@ LDLIBS=-lelm -lreadtree
 
 all: test
 
-test: $B $B/test_readtree
-	cd $B && ./test_readtree
+test: $B $B/readtree_test
+	cd $B && ./readtree_test
 
-$B/test_readtree: $B/test_readtree.o $B/libreadtree.a $B/libelm.a
+$B/readtree_test: $B/readtree_test.o $B/libreadtree.a $B/libelm.a
 
 $B/libreadtree: readtree.c
 
@@ -21,7 +21,7 @@ $B/%.o: %.c
 $B/libelm.a:
 	BUILD_DIR=../$B make -C elm0/
 
-$B/test_readtree.o: readtree.h
+$B/readtree_test.o: readtree.h
 $B/readtree: readtree.h
 
 $B:
