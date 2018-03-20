@@ -19,18 +19,11 @@
 
 #include "readtree.h"
 
-#define CHK_STR_EQ(A, B)\
-        CHKV((A) && (B) && !strcmp((A),(B)), \
-                "("#A")'%s' != ("#B")'%s'", (A), (B))
-
 #define MAX_IN_DIR 1000000
 
 // FIX: increase these
 #define MIN_READ 1
 #define MIN_READ_DIR 1
-
-// FIX: tests should have no output
-// FIX: separate test binary from libreadtree
 
 typedef struct {
         char *path;
