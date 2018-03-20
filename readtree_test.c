@@ -27,17 +27,11 @@
         CHKV((A) && (B) && !strcmp((A),(B)), \
                 "("#A")'%s' != ("#B")'%s'", (A), (B))
 
-// FIX: this is duplicated verbatim between tests and lib.
-static char *path_join_(const char *base, const char *stem)
+static char *path_join_(const char *base, const char *tip)
 {
-        size_t nb = strlen(base);
-        size_t ns = strlen(stem);
-        while(base[nb-1] == '/')
-                nb--;
-        char *ret = MALLOC(nb + ns + 2);
-        memcpy(ret, base, nb);
-        ret[nb] = '/';
-        memcpy(ret + nb + 1, stem, ns + 1);
+        char *ret;
+        if(0 > asprintf(&ret, "%s/%s", base, tip))
+                PANIC_NOMEM();
         return ret;
 }
 

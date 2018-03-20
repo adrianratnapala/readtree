@@ -53,19 +53,6 @@ static Tree *read_tree_(
         unsigned *pnsub,
         Error **perr);
 
-static char *path_join_(const char *base, const char *stem)
-{
-        size_t nb = strlen(base);
-        size_t ns = strlen(stem);
-        while(base[nb-1] == '/')
-                nb--;
-        char *ret = MALLOC(nb + ns + 2);
-        memcpy(ret, base, nb);
-        ret[nb] = '/';
-        memcpy(ret + nb + 1, stem, ns + 1);
-        return ret;
-}
-
 static char *read_file_(const char *path, unsigned *psize, Error **perr)
 {
         errno = 0;
@@ -257,7 +244,17 @@ static Error *next_stub_(
         Stub_ tde;
         Error *err = NULL;
 
-        tde.path = path_join_(dirname, de->d_name);
+        const char *fname = de->d_name;
+        size_t nf = strlen(fname);
+        size_t nd = strlen(dirname);
+        if(dirname[nd-1] == '/')
+                // FIX:
+                PANIC("ReadTtee allowed an untrimmed root directory");
+        tde.path = MALLOC(nf + nd + 2);
+        memcpy(tde.path, dirname, nd);
+        tde.path[nd] = '/';
+        memcpy(tde.path + nd + 1, fname, nf + 1);
+
         int de_type = de_type_(tde.path, de);
         if(de_type < 0) {
                 err = IO_ERROR(tde.path, errno,
