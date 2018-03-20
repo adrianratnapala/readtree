@@ -8,7 +8,6 @@ all: test
 test: $B $B/test_readtree
 	cd $B && ./test_readtree
 
-
 $B/test_readtree: $B/test_readtree.o $B/libreadtree.a $B/libelm.a
 
 $B/libreadtree: readtree.c
@@ -19,9 +18,11 @@ $B/lib%.a: $B/%.o
 $B/%.o: %.c
 	$(CC) -c $< $(CPPFLAGS) $(CFLAGS) -o $@
 
-
 $B/libelm.a:
 	BUILD_DIR=../$B make -C elm0/
+
+$B/test_readtree.o: readtree.h
+$B/readtree: readtree.h
 
 $B:
 	mkdir -p $@

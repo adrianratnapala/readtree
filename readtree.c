@@ -17,8 +17,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-#include "elm0/elm.h"
-#include "elm0/0unit.h"
+#include "readtree.h"
 
 #define CHK_STR_EQ(A, B)\
         CHKV((A) && (B) && !strcmp((A),(B)), \
@@ -33,24 +32,11 @@
 // FIX: tests should have no output
 // FIX: separate test binary from libreadtree
 
-typedef struct Tree {
-        char *full_path;
-        const char *path;
-
-        unsigned size;
-        char *content;
-
-        unsigned nsub;
-        struct Tree *sub;
-} Tree;
-
 typedef struct {
         char *path;
         int de_type;
         const char *name;
 } Stub_;
-
-typedef struct ReadTreeConf ReadTreeConf;
 
 bool read_tree_accept_suffix_(const void *arg, const char *path, const char *fname)
 {
@@ -63,27 +49,10 @@ bool read_tree_accept_suffix_(const void *arg, const char *path, const char *fna
         return !memcmp(suff, fname + n - n_suff, n_suff);
 }
 
-static bool read_tree_accept_all_(const void *arg, const char *path, const char *name)
+bool read_tree_accept_all_(const void *arg, const char *path, const char *name)
 {
         return true;
 }
-
-typedef struct {
-        bool (*fun_)(const void *, const char *, const char *);
-        void *arg_;
-} AcceptClosure;
-
-#define READ_TREE_ACCEPT_SUFFIX(suff) { \
-        read_tree_accept_suffix_, (suff) }
-#define READ_TREE_ACCEPT_ALL() { \
-        read_tree_accept_all_}
-
-struct ReadTreeConf {
-        char *root;
-        AcceptClosure accept_dir, accept_file;
-        const void *accept_dir_arg, *accept_file_arg;
-};
-
 
 static Tree *read_tree_(
         const ReadTreeConf *conf,
