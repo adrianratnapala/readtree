@@ -235,7 +235,7 @@ static int qsort_fun_(const void *va, const void *vb, void *arg)
 static Error *next_stub_(
         const ReadTreeConf *conf,
         Stub_ *pstub,
-        const char *dirname,
+        const char *full_dir_name,
         DIR *dir)
 {
         struct dirent *de;
@@ -244,12 +244,12 @@ static Error *next_stub_(
                         *pstub = (Stub_){0};
                         return NULL;
                 }
-                IO_PANIC(dirname, errno,
+                IO_PANIC(full_dir_name, errno,
                         "readdir() failed after opendir()");
         }
 
         if(reject_early(conf, de->d_name)) {
-                return next_stub_(conf, pstub, dirname, dir);
+                return next_stub_(conf, pstub, full_dir_name, dir);
         }
 
         Stub_ tde;
@@ -257,12 +257,12 @@ static Error *next_stub_(
 
         const char *fname = de->d_name;
         size_t nf = strlen(fname);
-        size_t nd = strlen(dirname);
-        if(dirname[nd-1] == '/')
+        size_t nd = strlen(full_dir_name);
+        if(full_dir_name[nd-1] == '/')
                 // FIX:
                 PANIC("ReadTtee allowed an untrimmed root directory");
         tde.path = MALLOC(nf + nd + 2);
-        memcpy(tde.path, dirname, nd);
+        memcpy(tde.path, full_dir_name, nd);
         tde.path[nd] = '/';
         memcpy(tde.path + nd + 1, fname, nf + 1);
 
@@ -278,7 +278,7 @@ static Error *next_stub_(
         int name_len = strnlen(de->d_name, NAME_MAX + 1);
         if(name_len > NAME_MAX)
                 PANIC("filename under %s longer than %d bytes",
-                        dirname, NAME_MAX);
+                        full_dir_name, NAME_MAX);
         tde.name = tde.path + strlen(tde.path) - name_len;
 
         if(accept(conf, tde, &err)) {
@@ -293,21 +293,21 @@ done:
                 *pstub = (Stub_){0};
                 return err;
         }
-        return next_stub_(conf, pstub, dirname, dir);
+        return next_stub_(conf, pstub, full_dir_name, dir);
 }
 
 
 static Error *load_stubv_(
         const ReadTreeConf *conf,
-        const char *dirname,
+        const char *full_dir_path,
         unsigned *pnstub,
         Stub_ **pstubv)
 {
-        assert(dirname);
+        assert(full_dir_path);
         errno = 0;
-        DIR *dir = opendir(dirname);
+        DIR *dir = opendir(full_dir_path);
         if(!dir) {
-                return IO_ERROR(dirname, errno, "Readtree opening dir");
+                return IO_ERROR(full_dir_path, errno, "Readtree opening dir");
         }
 
         Stub_ *stubv = NULL;
@@ -326,7 +326,7 @@ static Error *load_stubv_(
                 }
 
                 Stub_ stub;
-                err = next_stub_(conf, &stub, dirname, dir);
+                err = next_stub_(conf, &stub, full_dir_path, dir);
                 if(!stub.path)
                         break;
 
@@ -334,7 +334,7 @@ static Error *load_stubv_(
                 stubv[used++] = stub;
                 if(used >= MAX_IN_DIR) {
                         err = ERROR("Directory %s has > %d entries!",
-                                dirname, MAX_IN_DIR);
+                                full_dir_path, MAX_IN_DIR);
                         used = 0;
                 }
         }
@@ -357,13 +357,13 @@ static Error *load_stubv_(
 
 static Tree *read_tree_(
         const ReadTreeConf *conf,
-        const char *root,
+        const char *full_dir_path,
         unsigned *pnsub,
         Error **perr)
 {
         Stub_ *stub;
         unsigned n;
-        Error * err = load_stubv_(conf, root, &n, &stub);
+        Error * err = load_stubv_(conf, full_dir_path, &n, &stub);
         if(err) {
                 *perr = err;
                 return NULL;
