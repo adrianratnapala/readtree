@@ -157,9 +157,14 @@ error:
         return NULL;
 }
 
+// Read the content of a Stub_
+//
+// * For a file, this means read the bytes into pret->content.
+// * For a directory, this means recursively read it into pr->sub.
+// * Any other kind of file-system node results in an error.
 static Error *from_stub_(
         const ReadTreeConf *conf,
-        unsigned root_len,
+        unsigned root_len, // precomputed strlen(conf->root)
         Tree *pr,
         const Stub_ stub)
 {
@@ -192,17 +197,6 @@ static Error *from_stub_(
         *pr = r;
         return NULL;
 }
-
-static void destroy_tree_(Tree t)
-{
-        free(t.full_path);
-        free(t.content);
-        for(unsigned k = 0; k < t.nsub; k++) {
-                destroy_tree_(t.sub[k]);
-        }
-        free(t.sub);
-}
-
 
 static bool reject_early(const ReadTreeConf *conf, const char *name)
 {
@@ -354,6 +348,20 @@ static Error *load_stubv_(
         *pnstub = used;
         closedir(dir);
         return err;
+}
+
+// Destroy the *content* of `t`.  Recurses over all sub-nodes.
+//
+// This is in internal helper, both used by the (root-only) public interface
+// destroy_tree() and to clean up after errors in read_tree_().
+static void destroy_tree_(Tree t)
+{
+        free(t.full_path);
+        free(t.content);
+        for(unsigned k = 0; k < t.nsub; k++) {
+                destroy_tree_(t.sub[k]);
+        }
+        free(t.sub);
 }
 
 static Tree *read_tree_(
