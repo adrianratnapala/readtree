@@ -177,9 +177,6 @@ static Error *from_stub_(
         case DT_DIR:
                 r.sub = read_tree_(conf, r.full_path, &r.nsub, &err);
                 break;
-        case DT_LNK:
-                r.content = read_file_(r.full_path, &r.size, &err);
-                break;
         case DT_REG:
                 r.content = read_file_(r.full_path, &r.size, &err);
                 break;
