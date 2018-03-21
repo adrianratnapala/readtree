@@ -21,9 +21,8 @@
 
 #define MAX_IN_DIR 1000000
 
-// FIX: increase these
-#define MIN_READ 1
-#define MIN_READ_DIR 1
+#define MIN_READ 16184
+#define MIN_READ_DIR 128
 
 typedef struct {
         char *path;
