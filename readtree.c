@@ -24,21 +24,6 @@
 #define MIN_READ 16184
 #define MIN_READ_DIR 128
 
-
-// Internal representation of a directory entry which have not read yet.
-typedef struct
-{
-        // full path (i.e. regardless of tree root) to the object.
-        char *full_path;
-        // The final component of `path`
-        const char *name;
-        // The file-type as in a struct dirent (see readdir(1) or <dirent.h>),
-        // except that it never contains DT_UNKNOWN or DT_LINK.  If the real
-        // dirent contained one of those values, we will have used stat() to
-        // find out the truth.
-        int de_type;
-} Stub_;
-
 bool read_tree_accept_suffix_(const void *arg, const char *path, const char *fname)
 {
         const char *suff = arg;
@@ -55,11 +40,52 @@ bool read_tree_accept_all_(const void *arg, const char *path, const char *name)
         return true;
 }
 
-static Tree *read_tree_(
-        const ReadTreeConf *conf,
-        const char *root,
-        unsigned *pnsub,
-        Error **perr);
+// Internal representation of a directory entry which have not read yet.
+typedef struct
+{
+        // full path (i.e. regardless of tree root) to the object.
+        char *full_path;
+        // The final component of `path`
+        const char *name;
+        // The file-type as in a struct dirent (see readdir(1) or <dirent.h>),
+        // except that it never contains DT_UNKNOWN or DT_LINK.  If the real
+        // dirent contained one of those values, we will have used stat() to
+        // find out the truth.
+        int de_type;
+} Stub_;
+
+static int de_type_(const char *path, const struct dirent *de)
+{
+        unsigned char de_type = de->d_type;
+        if(de_type != DT_UNKNOWN && de_type != DT_LNK)
+                return de_type;
+
+        struct stat st;
+        if(0 >  stat(path, &st)) {
+                int ern = errno;
+                //LOG_F(err_log, "stat(%s) failed: %s", path, strerror(ern));
+                errno = ern;
+                return -1;
+        }
+        //LOG_F(dbg_log, "stat(%s) returns mode %0x", path, S_IFBLK);
+        switch(st.st_mode  & S_IFMT) {
+        case S_IFBLK: return DT_BLK;
+        case S_IFCHR: return DT_CHR;
+        case S_IFIFO: return DT_FIFO;
+        case S_IFDIR: return DT_DIR;
+        case S_IFREG: return DT_REG;
+        case S_IFSOCK: return DT_SOCK;
+        case S_IFLNK:
+                PANIC("stat of %s returned S_IFLINK!", path);
+        default:
+                PANIC("Unknown filetype %x from stat() of %s!",
+                        (unsigned)(st.st_mode  & S_IFMT), path);
+                return -1;
+        }
+}
+
+
+static Tree *read_tree_(const ReadTreeConf*, const char*, unsigned*, Error**);
 
 static char *read_file_(const char *path, unsigned *psize, Error **perr)
 {
@@ -121,36 +147,6 @@ error:
         do close(fd); while(errno == EINTR);
         free(block);
         return NULL;
-}
-
-static int de_type_(const char *path, const struct dirent *de)
-{
-        unsigned char de_type = de->d_type;
-        if(de_type != DT_UNKNOWN && de_type != DT_LNK)
-                return de_type;
-
-        struct stat st;
-        if(0 >  stat(path, &st)) {
-                int ern = errno;
-                //LOG_F(err_log, "stat(%s) failed: %s", path, strerror(ern));
-                errno = ern;
-                return -1;
-        }
-        //LOG_F(dbg_log, "stat(%s) returns mode %0x", path, S_IFBLK);
-        switch(st.st_mode  & S_IFMT) {
-        case S_IFBLK: return DT_BLK;
-        case S_IFCHR: return DT_CHR;
-        case S_IFIFO: return DT_FIFO;
-        case S_IFDIR: return DT_DIR;
-        case S_IFREG: return DT_REG;
-        case S_IFSOCK: return DT_SOCK;
-        case S_IFLNK:
-                PANIC("stat of %s returned S_IFLINK!", path);
-        default:
-                PANIC("Unknown filetype %x from stat() of %s!",
-                        (unsigned)(st.st_mode  & S_IFMT), path);
-                return -1;
-        }
 }
 
 static Error *from_stub_(
