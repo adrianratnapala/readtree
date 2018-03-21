@@ -24,6 +24,9 @@
 #define MIN_READ 16184
 #define MIN_READ_DIR 128
 
+#define LOG_ERR(...) LOG_F(err_log, __VA_ARGS__);
+#define LOG_DBG(...) LOG_F(null_log, __VA_ARGS__);
+
 bool read_tree_accept_suffix_(const void *arg, const char *path, const char *fname)
 {
         const char *suff = arg;
@@ -54,6 +57,10 @@ typedef struct
         int de_type;
 } Stub_;
 
+// Determine the Stub_.de_type of an filesystem object.
+//
+// If the dirent contains what we need, just us that, otherwise stat() the
+// underlying object and convert the result.
 static int de_type_(const char *path, const struct dirent *de)
 {
         unsigned char de_type = de->d_type;
@@ -63,11 +70,10 @@ static int de_type_(const char *path, const struct dirent *de)
         struct stat st;
         if(0 >  stat(path, &st)) {
                 int ern = errno;
-                //LOG_F(err_log, "stat(%s) failed: %s", path, strerror(ern));
                 errno = ern;
                 return -1;
         }
-        //LOG_F(dbg_log, "stat(%s) returns mode %0x", path, S_IFBLK);
+        LOG_DBG("stat(%s) returns mode %0x", path, S_IFBLK);
         switch(st.st_mode  & S_IFMT) {
         case S_IFBLK: return DT_BLK;
         case S_IFCHR: return DT_CHR;
