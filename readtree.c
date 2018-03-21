@@ -24,10 +24,19 @@
 #define MIN_READ 16184
 #define MIN_READ_DIR 128
 
-typedef struct {
+
+// Internal representation of a directory entry which have not read yet.
+typedef struct
+{
+        // Path from the tree root to the object
         char *path;
-        int de_type;
+        // The final component of `path`
         const char *name;
+        // The file-type as in a struct dirent (see readdir(1) or <dirent.h>),
+        // except that it never contains DT_UNKNOWN or DT_LINK.  If the real
+        // dirent contained one of those values, we will have used stat() to
+        // find out the truth.
+        int de_type;
 } Stub_;
 
 bool read_tree_accept_suffix_(const void *arg, const char *path, const char *fname)
@@ -136,8 +145,11 @@ static int de_type_(const char *path, const struct dirent *de)
         case S_IFREG: return DT_REG;
         case S_IFSOCK: return DT_SOCK;
         case S_IFLNK:
-                PANIC("lstat of %s returned S_IFLINK!", path);
-        default: return DT_UNKNOWN;
+                PANIC("stat of %s returned S_IFLINK!", path);
+        default:
+                PANIC("Unknown filetype %x from stat() of %s!",
+                        (unsigned)(st.st_mode  & S_IFMT), path);
+                return -1;
         }
 }
 
