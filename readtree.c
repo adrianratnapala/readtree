@@ -28,8 +28,8 @@
 // Internal representation of a directory entry which have not read yet.
 typedef struct
 {
-        // Path from the tree root to the object
-        char *path;
+        // full path (i.e. regardless of tree root) to the object.
+        char *full_path;
         // The final component of `path`
         const char *name;
         // The file-type as in a struct dirent (see readdir(1) or <dirent.h>),
@@ -162,12 +162,12 @@ static Error *from_stub_(
         assert(pr);
         const char *name = stub.name;
         if(!name)
-                PANIC("NULL name from scandir of %s!", stub.path);
+                PANIC("NULL name from scandir of %s!", stub.full_path);
 
-        assert(stub.path[root_len] == '/');
+        assert(stub.full_path[root_len] == '/');
         Tree r = {
-                .full_path = stub.path,
-                .path = stub.path + root_len + 1,
+                .full_path = stub.full_path,
+                .path = stub.full_path + root_len + 1,
         };
         Error *err = NULL;
 
@@ -216,11 +216,11 @@ static bool accept(const ReadTreeConf *conf, Stub_ stub, Error **perr)
         case DT_DIR: closure = conf->accept_dir; break;
         case DT_REG: closure = conf->accept_file; break;
         default:
-                *perr = IO_ERROR(stub.path, EINVAL, "Unknown filetype");
+                *perr = IO_ERROR(stub.full_path, EINVAL, "Unknown filetype");
                 return false;
         }
 
-        return closure.fun_(closure.arg_, stub.path, stub.name);
+        return closure.fun_(closure.arg_, stub.full_path, stub.name);
 }
 
 
@@ -261,16 +261,16 @@ static Error *next_stub_(
         if(full_dir_name[nd-1] == '/')
                 // FIX:
                 PANIC("ReadTtee allowed an untrimmed root directory");
-        tde.path = MALLOC(nf + nd + 2);
-        memcpy(tde.path, full_dir_name, nd);
-        tde.path[nd] = '/';
-        memcpy(tde.path + nd + 1, fname, nf + 1);
+        tde.full_path = MALLOC(nf + nd + 2);
+        memcpy(tde.full_path, full_dir_name, nd);
+        tde.full_path[nd] = '/';
+        memcpy(tde.full_path + nd + 1, fname, nf + 1);
 
-        int de_type = de_type_(tde.path, de);
+        int de_type = de_type_(tde.full_path, de);
         if(de_type < 0) {
-                err = IO_ERROR(tde.path, errno,
+                err = IO_ERROR(tde.full_path, errno,
                         "While getting file-type of directory entry");
-                free(tde.path);
+                free(tde.full_path);
                 goto done;
         }
         tde.de_type = de_type;
@@ -279,14 +279,14 @@ static Error *next_stub_(
         if(name_len > NAME_MAX)
                 PANIC("filename under %s longer than %d bytes",
                         full_dir_name, NAME_MAX);
-        tde.name = tde.path + strlen(tde.path) - name_len;
+        tde.name = tde.full_path + strlen(tde.full_path) - name_len;
 
         if(accept(conf, tde, &err)) {
                 assert(!err);
                 *pstub = tde;
                 return NULL;
         }
-        free(tde.path);
+        free(tde.full_path);
 
 done:
         if(err) {
@@ -327,7 +327,7 @@ static Error *load_stubv_(
 
                 Stub_ stub;
                 err = next_stub_(conf, &stub, full_dir_path, dir);
-                if(!stub.path)
+                if(!stub.full_path)
                         break;
 
                 assert(used < alloced);
@@ -390,7 +390,7 @@ static Tree *read_tree_(
         } else {
                 // Sad path: clean up stubs and already-converted trees.
                 for(int k = 0; k < n; k++) {
-                        free(stub[k].path);
+                        free(stub[k].full_path);
                 }
                 for(int k = 0; k < nconverted; k++) {
                         destroy_tree_(subv[k]);
