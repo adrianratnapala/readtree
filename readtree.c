@@ -93,14 +93,15 @@ static int de_type_(const char *path, const struct dirent *de)
 
 static Tree *read_tree_(const ReadTreeConf*, const char*, unsigned*, Error**);
 
-static char *read_file_(const char *path, unsigned *psize, Error **perr)
+// Reads the content of a file into a buffer you can free().
+static char *read_file_(const char *full_path, unsigned *psize, Error **perr)
 {
         errno = 0;
         size_t used = 0, block_size = MIN_READ + 1;
         char *block = NULL;
-        int fd = open(path, O_RDONLY);
+        int fd = open(full_path, O_RDONLY);
         if(fd < 0) {
-                *perr = IO_ERROR(path, errno, "Opening file");
+                *perr = IO_ERROR(full_path, errno, "Opening file");
                 return NULL;
         }
 
@@ -114,10 +115,10 @@ static char *read_file_(const char *path, unsigned *psize, Error **perr)
                 assert(block_size - used > 1);
                 ssize_t n = read(fd, block + used, block_size - used - 1);
                 if(n < 0) {
-                        *perr = IO_ERROR(path, errno, "Reading file");
+                        *perr = IO_ERROR(full_path, errno, "Reading file");
                         goto error;
                 }
-                //LOG_F(dbg_log, "Read %ld bytes from %s", n, path);
+                LOG_DBG("Read %ld bytes from %s", n, full_path);
                 if(n == 0) {
                         goto eof;
                 }
@@ -128,7 +129,8 @@ static char *read_file_(const char *path, unsigned *psize, Error **perr)
                 }
 
                 if((block_size *= 2) > UINT_MAX) {
-                        *perr = IO_ERROR(path, EINVAL, "Reading too big a file");
+                        *perr = IO_ERROR(full_path, EINVAL,
+                                "Reading too big a file");
                         goto error;
                 }
 
@@ -140,12 +142,12 @@ eof:
         block[used] = 0;
         do close(fd); while(errno == EINTR);
         if(errno) {
-                *perr = IO_ERROR(path, errno, "Closing file");
+                *perr = IO_ERROR(full_path, errno, "Closing file");
                 free(block);
                 return NULL;
         }
         *psize = used;
-        //LOG_F(dbg_log, "Successfully read file %s (%u bytes).", path, *psize);
+        LOG_DBG("Successfully read file %s (%u bytes).", full_path, *psize);
         return block;
 
 error:
