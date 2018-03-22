@@ -25,7 +25,7 @@
 #define MIN_READ_DIR 128
 
 #define LOG_ERR(...) LOG_F(err_log, __VA_ARGS__);
-#define LOG_DBG(...) LOG_F(null_log, __VA_ARGS__);
+#define LOG_DBG(...) LOG_F(dbg_log, __VA_ARGS__);
 
 bool read_tree_accept_suffix_(const void *arg, const char *path, const char *fname)
 {
@@ -61,35 +61,63 @@ typedef struct
 //
 // If the dirent contains what we need, just us that, otherwise stat() the
 // underlying object and convert the result.
-static int de_type_(const char *path, const struct dirent *de)
+static int de_type_(const char *full_path, const struct dirent *de)
 {
         unsigned char de_type = de->d_type;
-        if(de_type != DT_UNKNOWN && de_type != DT_LNK)
+        if(de_type == DT_REG && de_type != DT_DIR)
                 return de_type;
 
         struct stat st;
-        if(0 >  stat(path, &st)) {
-                int ern = errno;
-                errno = ern;
-                return -1;
-        }
-        LOG_DBG("stat(%s) returns mode %0x", path, S_IFBLK);
+        if(0 >  stat(full_path, &st))
+                return -errno;
+        LOG_DBG("stat(%s) returns mode %0x", full_path, S_IFBLK);
         switch(st.st_mode  & S_IFMT) {
-        case S_IFBLK: return DT_BLK;
-        case S_IFCHR: return DT_CHR;
-        case S_IFIFO: return DT_FIFO;
         case S_IFDIR: return DT_DIR;
         case S_IFREG: return DT_REG;
-        case S_IFSOCK: return DT_SOCK;
         case S_IFLNK:
-                PANIC("stat of %s returned S_IFLINK!", path);
+                PANIC("stat of %s returned S_IFLINK!", full_path);
         default:
-                PANIC("Unknown filetype %x from stat() of %s!",
-                        (unsigned)(st.st_mode  & S_IFMT), path);
-                return -1;
+                LOG_ERR("Unknown filetype %x from stat() of %s!",
+                        (unsigned)(st.st_mode  & S_IFMT), full_path);
+                return -EINVAL;
         }
 }
 
+// Convert a directory + dirent into a Stub_
+static Error *make_stub(
+        const char *full_dir_path,
+        const struct dirent *de,
+        Stub_ *pret)
+{
+        const char *de_fname = de->d_name;
+
+        size_t nf = strlen(de_fname);
+        size_t nd = strlen(full_dir_path);
+        if(full_dir_path[nd-1] == '/')
+                PANIC("ReadTtee allowed an untrimmed root directory");
+
+        char *full_path = MALLOC(nf + nd + 2);
+        char *name = full_path + nd + 1;
+        memcpy(full_path, full_dir_path, nd);
+        full_path[nd] = '/';
+        memcpy(name, de_fname, nf + 1);
+
+        int de_type = de_type_(full_path, de);
+        if(de_type < 0) {
+                Error *err = IO_ERROR(full_path, -de_type,
+                        "While getting file-type of directory entry");
+                free(full_path);
+                return err;
+        }
+
+        *pret = (Stub_) {
+                .full_path = full_path,
+                .name = name,
+                .de_type = de_type,
+        };
+
+        return NULL;
+}
 
 static Tree *read_tree_(const ReadTreeConf*, const char*, unsigned*, Error**);
 
@@ -228,7 +256,7 @@ static int qsort_fun_(const void *va, const void *vb, void *arg)
 static Error *next_stub_(
         const ReadTreeConf *conf,
         Stub_ *pstub,
-        const char *full_dir_name,
+        const char *full_dir_path,
         DIR *dir)
 {
         struct dirent *de;
@@ -237,55 +265,24 @@ static Error *next_stub_(
                         *pstub = (Stub_){0};
                         return NULL;
                 }
-                IO_PANIC(full_dir_name, errno,
+                IO_PANIC(full_dir_path, errno,
                         "readdir() failed after opendir()");
         }
 
         Stub_ tde;
-        Error *err = NULL;
-
-        const char *fname = de->d_name;
-        size_t nf = strlen(fname);
-        size_t nd = strlen(full_dir_name);
-        if(full_dir_name[nd-1] == '/')
-                // FIX:
-                PANIC("ReadTtee allowed an untrimmed root directory");
-        tde.full_path = MALLOC(nf + nd + 2);
-        memcpy(tde.full_path, full_dir_name, nd);
-        tde.full_path[nd] = '/';
-        memcpy(tde.full_path + nd + 1, fname, nf + 1);
-
-        int de_type = de_type_(tde.full_path, de);
-        if(de_type < 0) {
-                err = IO_ERROR(tde.full_path, errno,
-                        "While getting file-type of directory entry");
-                goto done;
-        }
-        tde.de_type = de_type;
-
-        int name_len = strnlen(de->d_name, NAME_MAX + 1);
-        if(name_len > NAME_MAX)
-                PANIC("filename under %s longer than %d bytes",
-                        full_dir_name, NAME_MAX);
-        tde.name = tde.full_path + strlen(tde.full_path) - name_len;
-
-        if(tde.de_type != DT_REG && tde.de_type != DT_DIR)
-                err = ERROR("FIX: hack, temporary filetype check failed");
-
-done:
+        Error *err = make_stub(full_dir_path, de, &tde);
         if(err) {
-                free(tde.full_path);
                 *pstub = (Stub_){0};
                 return err;
         }
 
         if(accept_stub_(conf, tde)) {
-                assert(!err);
                 *pstub = tde;
                 return NULL;
         }
+
         free(tde.full_path);
-        return next_stub_(conf, pstub, full_dir_name, dir);
+        return next_stub_(conf, pstub, full_dir_path, dir);
 }
 
 
