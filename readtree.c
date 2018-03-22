@@ -25,7 +25,7 @@
 #define MIN_READ_DIR 128
 
 #define LOG_ERR(...) LOG_F(err_log, __VA_ARGS__);
-#define LOG_DBG(...) LOG_F(dbg_log, __VA_ARGS__);
+#define LOG_DBG(...) LOG_F(null_log, __VA_ARGS__);
 
 bool read_tree_accept_suffix_(const void *arg, const char *path, const char *fname)
 {
@@ -245,14 +245,7 @@ static bool accept_stub_(const ReadTreeConf *conf, Stub_ stub)
         return closure.fun_(closure.arg_, stub.full_path, stub.name);
 }
 
-static int qsort_fun_(const void *va, const void *vb, void *arg)
-{
-        const Stub_ *a = va, *b = vb;
-        const char *name_a = a->name;
-        const char *name_b = b->name;
-        return strcmp(name_a, name_b);
-}
-
+// Iterate the dirstream `dir` to the next non-ignored object (Stub_).
 static Error *next_stub_(
         const ReadTreeConf *conf,
         Stub_ *pstub,
@@ -285,6 +278,13 @@ static Error *next_stub_(
         return next_stub_(conf, pstub, full_dir_path, dir);
 }
 
+static int qsort_fun_(const void *va, const void *vb, void *arg)
+{
+        const Stub_ *a = va, *b = vb;
+        const char *name_a = a->name;
+        const char *name_b = b->name;
+        return strcmp(name_a, name_b);
+}
 
 static Error *load_stubv_(
         const ReadTreeConf *conf,
