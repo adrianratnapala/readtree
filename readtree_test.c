@@ -30,6 +30,10 @@
 static char *path_join_(const char *base, const char *tip)
 {
         char *ret;
+        if(!*tip) {
+                // Don't gratuitously append '/' if tip is ""
+                return strdup(base);
+        }
         if(0 > asprintf(&ret, "%s/%s", base, tip))
                 PANIC_NOMEM();
         return ret;
@@ -518,6 +522,15 @@ static TestCase tc_bad_cyclic_link_ = {
         }
 };
 
+static TestCase tc_bad_root_is_file_ = {
+        .conf = (ReadTreeConf){ .root = "bad_root_is_file", },
+        .files = (TestFile[]){
+                {"", "Having conent, I am a file, not a directory" },
+                {0},
+        }
+};
+
+
 static int test_bad_case(TestCase tc)
 {
         TestFile *tf =  tc.files;
@@ -542,6 +555,7 @@ int main(void)
         test_read_tree_case(tc_drop_files_without_suffix_);
         test_read_tree_case(tc_drop_dirs_without_suffix_);
 
+        test_bad_case(tc_bad_root_is_file_);
         test_bad_case(tc_bad_cyclic_link_);
         test_bad_case(tc_bad_broken_link_);
         test_bad_case(tc_bad_fifo_in_tree_);
