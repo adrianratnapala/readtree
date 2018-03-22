@@ -455,7 +455,6 @@ Error *read_tree(const ReadTreeConf *pconf, Tree **ptree)
         Error *err = NULL;
 
         // The top-level is always a directory, so just call read_tree_.
-        // FIX: what happens if it isn't?
         t.sub = read_tree_(&conf, conf.root, &t.nsub, &err);
         if(err) {
                 free(conf.root);

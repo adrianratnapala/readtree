@@ -530,6 +530,13 @@ static TestCase tc_bad_root_is_file_ = {
         }
 };
 
+static TestCase tc_bad_root_does_not_exist_ = {
+        .conf = (ReadTreeConf){ .root = "root_does_not_exist", },
+        .files = (TestFile[]){
+                {0},
+        }
+};
+
 
 static int test_bad_case(TestCase tc)
 {
@@ -554,7 +561,9 @@ int main(void)
         test_read_tree_case(tc_main_test_tree_);
         test_read_tree_case(tc_drop_files_without_suffix_);
         test_read_tree_case(tc_drop_dirs_without_suffix_);
+        test_read_tree_case(tc_drop_dirs_without_suffix_);
 
+        test_bad_case(tc_bad_root_does_not_exist_);
         test_bad_case(tc_bad_root_is_file_);
         test_bad_case(tc_bad_cyclic_link_);
         test_bad_case(tc_bad_broken_link_);
