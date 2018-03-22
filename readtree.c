@@ -412,14 +412,7 @@ static Tree *read_tree_(
         return subv;
 }
 
-void destroy_tree(Tree *tree)
-{
-        if(!tree)
-                return;
-        destroy_tree_(*tree);
-        free(tree);
-}
-
+// Modify a conf in-place to make it ready for use (expans out defaults etc).
 Error *fill_out_config_(ReadTreeConf *conf)
 {
         if(!conf->accept_dir.fun_)
@@ -470,4 +463,11 @@ Error *read_tree(const ReadTreeConf *pconf, Tree **ptree)
         return NULL;
 }
 
+void destroy_tree(Tree *tree)
+{
+        if(!tree)
+                return;
+        destroy_tree_(*tree);
+        free(tree);
+}
 
