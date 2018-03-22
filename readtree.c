@@ -359,12 +359,14 @@ static void destroy_tree_(Tree t)
         free(t.sub);
 }
 
+// Recursively read read a directory into a sorted array of Trees.
 static Tree *read_tree_(
         const ReadTreeConf *conf,
         const char *full_dir_path,
         unsigned *pnsub,
         Error **perr)
 {
+        // Read it as stubs.
         Stub_ *stub;
         unsigned n;
         Error * err = load_stubv_(conf, full_dir_path, &n, &stub);
@@ -373,8 +375,9 @@ static Tree *read_tree_(
                 return NULL;
         }
         assert(stub || !n);
-        struct Tree *subv = MALLOC(sizeof(Tree)*n);
 
+        // Recursively expand each stub.
+        struct Tree *subv = MALLOC(sizeof(Tree)*n);
         int nconverted;
         unsigned root_len = strlen(conf->root);
         for(nconverted = 0; nconverted < n; nconverted++) {
@@ -387,6 +390,7 @@ static Tree *read_tree_(
                         break;
         }
 
+        // Clean up.
         assert(n >= 0);
         if(!err) {
                 // Happy path: just return the subv.
