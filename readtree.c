@@ -99,6 +99,7 @@ static char *read_file_(const char *full_path, unsigned *psize, Error **perr)
         errno = 0;
         size_t used = 0, block_size = MIN_READ + 1;
         char *block = NULL;
+        assert(full_path);
         int fd = open(full_path, O_RDONLY);
         if(fd < 0) {
                 *perr = IO_ERROR(full_path, errno, "Opening file");
@@ -198,26 +199,23 @@ static Error *from_stub_(
         return NULL;
 }
 
-static bool reject_early(const ReadTreeConf *conf, const char *name)
+// Filter stubs, use hard-coded dot-file exclusion and the configured acceptor.
+static bool accept_stub_(const ReadTreeConf *conf, Stub_ stub)
 {
-        assert(name);
-        return *name == '.';
-}
+        assert(stub.name && stub.full_path);
+        // We must exclude at least '.' and '..'; here we exclude all dotfiles.
+        if(stub.name[0] == '.')
+                return false;
 
-static bool accept(const ReadTreeConf *conf, Stub_ stub, Error **perr)
-{
         AcceptClosure closure;
         switch(stub.de_type) {
         case DT_DIR: closure = conf->accept_dir; break;
         case DT_REG: closure = conf->accept_file; break;
         default:
-                *perr = IO_ERROR(stub.full_path, EINVAL, "Unknown filetype");
-                return false;
+                PANIC("accept_stub() called with bad filetype %d", stub.de_type);
         }
-
         return closure.fun_(closure.arg_, stub.full_path, stub.name);
 }
-
 
 static int qsort_fun_(const void *va, const void *vb, void *arg)
 {
@@ -241,10 +239,6 @@ static Error *next_stub_(
                 }
                 IO_PANIC(full_dir_name, errno,
                         "readdir() failed after opendir()");
-        }
-
-        if(reject_early(conf, de->d_name)) {
-                return next_stub_(conf, pstub, full_dir_name, dir);
         }
 
         Stub_ tde;
@@ -276,17 +270,19 @@ static Error *next_stub_(
                         full_dir_name, NAME_MAX);
         tde.name = tde.full_path + strlen(tde.full_path) - name_len;
 
-        if(accept(conf, tde, &err)) {
-                assert(!err);
-                *pstub = tde;
-                return NULL;
-        }
-        free(tde.full_path);
+        if(tde.de_type != DT_REG && tde.de_type != DT_DIR)
+                err = ERROR("FIX: hack, temporary filetype check failed");
 
 done:
         if(err) {
                 *pstub = (Stub_){0};
                 return err;
+        }
+
+        if(accept_stub_(conf, tde)) {
+                assert(!err);
+                *pstub = tde;
+                return NULL;
         }
         return next_stub_(conf, pstub, full_dir_name, dir);
 }
