@@ -422,24 +422,29 @@ Error *fill_out_config_(ReadTreeConf *conf)
         return NULL;
 }
 
+// -- Public -----------------------------------------------------------
+
+// See read_tree.h?read_tree
 Error *read_tree(const ReadTreeConf *pconf, Tree **ptree)
 {
+        if(!ptree)
+                PANIC("'ptree' is null");
         if(!pconf)
-                return ERROR("ReadTreeConf is NULL");
-        ReadTreeConf conf = *pconf;
-        fill_out_config_(&conf);
-        if(!conf.root)
-                return ERROR("Configured ReadTree 'root' is null");
-        size_t root_len = strnlen(conf.root, PATH_MAX + 1);
+                PANIC("ReadTreeConf is NULL");
+        if(!pconf->root)
+                PANIC("Configured ReadTree 'root' is null");
+        size_t root_len = strnlen(pconf->root, PATH_MAX + 1);
         if(root_len > PATH_MAX)
-                return ERROR("Configured ReadTree 'root' is %lu bytes.  "
+                PANIC("Configured ReadTree 'root' is %lu bytes.  "
                              "Max length is %u", root_len, (unsigned)PATH_MAX);
 
+        ReadTreeConf conf = *pconf;
+        fill_out_config_(&conf);
+
+        // Keep a private copy of the root, owned by to (root) Tree object.
         if(!(conf.root = strdup(conf.root)))
                 PANIC_NOMEM();
 
-        if(!ptree)
-                PANIC("'ptree' is null");
         Tree t = {
                 .full_path = conf.root,
                 .path = conf.root + strlen(conf.root),
@@ -448,6 +453,9 @@ Error *read_tree(const ReadTreeConf *pconf, Tree **ptree)
                 PANIC_NOMEM();
         }
         Error *err = NULL;
+
+        // The top-level is always a directory, so just call read_tree_.
+        // FIX: what happens if it isn't?
         t.sub = read_tree_(&conf, conf.root, &t.nsub, &err);
         if(err) {
                 free(conf.root);
@@ -463,6 +471,7 @@ Error *read_tree(const ReadTreeConf *pconf, Tree **ptree)
         return NULL;
 }
 
+// See read_tree.h?destroy_tree
 void destroy_tree(Tree *tree)
 {
         if(!tree)
