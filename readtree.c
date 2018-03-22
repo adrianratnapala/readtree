@@ -278,7 +278,7 @@ static Error *next_stub_(
         return next_stub_(conf, pstub, full_dir_path, dir);
 }
 
-static int qsort_fun_(const void *va, const void *vb, void *arg)
+static int qsort_stub_cmp_(const void *va, const void *vb, void *arg)
 {
         const Stub_ *a = va, *b = vb;
         const char *name_a = a->name;
@@ -286,6 +286,7 @@ static int qsort_fun_(const void *va, const void *vb, void *arg)
         return strcmp(name_a, name_b);
 }
 
+// Nonrecursively a directory into a sorted array of Stub_s.
 static Error *load_stubv_(
         const ReadTreeConf *conf,
         const char *full_dir_path,
@@ -307,7 +308,6 @@ static Error *load_stubv_(
                 if(used == alloced) {
                         if(!(alloced *= 2))
                                 alloced = 1;
-                        //LOG_F(dbg_log, "allocating %d dirent ptrs", alloced);
                         stubv = realloc(stubv, alloced * sizeof stubv[0]);
                         if(!stubv) {
                                 PANIC_NOMEM();
@@ -329,15 +329,16 @@ static Error *load_stubv_(
         }
 
 
-        // Clean-up stage, on the good and bad paths both.  Bad (err != NULL)
-        // implies used == 0, but sed == 0 can also happen on the good path.
-        //LOG_F(dbg_log, "trimming alloc to %d dirent ptrs", used);
+        // Clean-up stage, on the good and bad paths both.
+        //
+        // Bad (err != NULL) implies used == 0, but that also happens on the
+        // good path.
         stubv = realloc(stubv, used * sizeof stubv[0]);
         if(!stubv && used) {
                 PANIC_NOMEM();
         }
 
-        qsort_r(stubv, used, sizeof stubv[0], qsort_fun_, NULL);
+        qsort_r(stubv, used, sizeof stubv[0], qsort_stub_cmp_, NULL);
         *pstubv = stubv;
         *pnstub = used;
         closedir(dir);
