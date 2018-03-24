@@ -277,13 +277,28 @@ fail:
         return 0;
 }
 
+static int chk_tree_ok(FileNode *tree)
+{
+        CHK(tree->path);
+        CHK(tree->path - tree->full_path <= strlen(tree->full_path));
+        if(tree->content) {
+                //CHKV(tree->content[tree->size] == '\0',
+                //        "File content for %s was not nul-terminated",
+                //        tree->path);
+        } else {
+                LOG_F(dbg_log, "'%s' is not a file", tree->path);
+                CHKV(tree->sub, "Node is neither a file or directory!");
+        }
+
+        PASS_QUIETLY();
+}
+
+
 static TestFile *chk_tree_equal(const char *root, TestFile *tfp, FileNode *tree) {
         TestFile tf = *tfp++;
 
         if(tf.expect_dropped) {
-                return chk_tree_equal(root, tfp, tree);
-        }
-
+                return chk_tree_equal(root, tfp, tree); }
         CHK(tf.path);
         CHK(tree->full_path);
 
@@ -319,6 +334,7 @@ static int chk_test_tree(TestFile *tf, const ReadTreeConf *conf)
 {
         FileNode *tree;
         CHK(noerror(read_tree(conf, &tree)));
+        CHK(chk_tree_ok(tree));
 
         CHK(tf = chk_tree_equal(conf->root, tf, tree));
         for(; tf->expect_dropped; tf++) { }

@@ -18,10 +18,11 @@ typedef struct FileNode {
         unsigned size;
         char *content;
 
-        // The sub-nodes node of this node.  For a file, or for an empty
-        // directory .nsub = 0, .sub = NULL, but for other directories.
+        // The sub-nodes node of this one, followed by an empty (default
+        // initalized) "sentry" node.  For a file directory .nsub = 0, .sub =
+        // NULL.
         unsigned nsub;
-        struct FileNode *sub;
+        struct FileNode *sub; // FIX: should be subv
 } FileNode;
 
 

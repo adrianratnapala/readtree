@@ -25,7 +25,11 @@
 #define MIN_READ_DIR 128
 
 #define LOG_ERR(...) LOG_F(err_log, __VA_ARGS__);
+#if 0
 #define LOG_DBG(...) LOG_F(null_log, __VA_ARGS__);
+#else
+#define LOG_DBG(...) LOG_F(dbg_log, __VA_ARGS__);
+#endif
 
 bool read_tree_accept_suffix_(const void *arg, const char *path, const char *fname)
 {
@@ -212,6 +216,7 @@ static Error *from_stub_(
         switch(stub.de_type) {
         case DT_DIR:
                 r.sub = read_tree_(conf, r.full_path, &r.nsub, &err);
+                assert(err || r.sub);
                 break;
         case DT_REG:
                 r.content = read_file_(r.full_path, &r.size, &err);
@@ -334,8 +339,10 @@ static Error *load_stubv_(
         // Bad (err != NULL) implies used == 0, but that also happens on the
         // good path.
         stubv = realloc(stubv, used * sizeof stubv[0]);
-        if(!stubv && used) {
-                PANIC_NOMEM();
+        if(!stubv) {
+                if(used)
+                        PANIC_NOMEM();
+                LOG_DBG("nothing found in drectory, return NULL");
         }
 
         qsort_r(stubv, used, sizeof stubv[0], qsort_stub_cmp_, NULL);
@@ -377,7 +384,8 @@ static FileNode *read_tree_(
         assert(stub || !n);
 
         // Recursively expand each stub.
-        struct FileNode *subv = MALLOC(sizeof(FileNode)*n);
+        struct FileNode *subv = MALLOC(sizeof(FileNode)*(n+1));
+        subv[n] = (FileNode){0};
         int nconverted;
         unsigned root_len = strlen(conf->root);
         for(nconverted = 0; nconverted < n; nconverted++) {
@@ -456,6 +464,7 @@ Error *read_tree(const ReadTreeConf *pconf, FileNode **ptree)
 
         // The top-level is always a directory, so just call read_tree_.
         t.sub = read_tree_(&conf, conf.root, &t.nsub, &err);
+        assert(err || t.sub);
         if(err) {
                 free(conf.root);
                 return err;
