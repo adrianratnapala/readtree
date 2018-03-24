@@ -466,6 +466,7 @@ Error *read_source_tree(const ReadTreeConf *pconf, Tree **ptree)
         Error *err = NULL;
         t.sub = read_tree_(&conf, conf.root, &t.nsub, &err);
         if(err) {
+                free(conf.root);
                 return err;
         }
         Tree *tree = malloc(sizeof(Tree));
