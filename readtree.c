@@ -387,7 +387,7 @@ static FileNode *read_tree_(
         struct FileNode *subv = MALLOC(sizeof(FileNode)*(n+1));
         subv[n] = (FileNode){0};
         int nconverted;
-        unsigned root_len = strlen(conf->root);
+        unsigned root_len = strlen(conf->root_path);
         for(nconverted = 0; nconverted < n; nconverted++) {
                 err = from_stub_(
                         conf,
@@ -433,15 +433,16 @@ Error *fill_out_config_(ReadTreeConf *conf)
 // -- Public -----------------------------------------------------------
 
 // See read_tree.h?read_tree
-Error *read_tree(const ReadTreeConf *pconf, FileNode **ptree)
+// FIX: we don't need both arguments
+Error *read_tree(const ReadTreeConf *pconf, FileTree *ptree)
 {
         if(!ptree)
                 PANIC("'ptree' is null");
         if(!pconf)
                 PANIC("ReadTreeConf is NULL");
-        if(!pconf->root)
+        if(!pconf->root_path)
                 PANIC("Configured ReadTree 'root' is null");
-        size_t root_len = strnlen(pconf->root, PATH_MAX + 1);
+        size_t root_len = strnlen(pconf->root_path, PATH_MAX + 1);
         if(root_len > PATH_MAX)
                 PANIC("Configured ReadTree 'root' is %lu bytes.  "
                              "Max length is %u", root_len, (unsigned)PATH_MAX);
@@ -450,12 +451,12 @@ Error *read_tree(const ReadTreeConf *pconf, FileNode **ptree)
         fill_out_config_(&conf);
 
         // Keep a private copy of the root, owned by to (root) FileNode object.
-        if(!(conf.root = strdup(conf.root)))
+        if(!(conf.root_path = strdup(conf.root_path)))
                 PANIC_NOMEM();
 
         FileNode t = {
-                .full_path = conf.root,
-                .path = conf.root + strlen(conf.root),
+                .full_path = conf.root_path,
+                .path = conf.root_path + strlen(conf.root_path),
         };
         if(!t.full_path) {
                 PANIC_NOMEM();
@@ -463,28 +464,24 @@ Error *read_tree(const ReadTreeConf *pconf, FileNode **ptree)
         Error *err = NULL;
 
         // The top-level is always a directory, so just call read_tree_.
-        t.subv = read_tree_(&conf, conf.root, &t.nsub, &err);
+        t.subv = read_tree_(&conf, conf.root_path, &t.nsub, &err);
         assert(err || t.subv);
         if(err) {
-                free(conf.root);
+                free(conf.root_path);
+                *ptree = (FileTree){0};
                 return err;
         }
-        FileNode *tree = malloc(sizeof(FileNode));
-        if(!tree) {
-                destroy_tree_(t);
-                PANIC_NOMEM();
-        }
-        *tree = t;
-        *ptree = tree;
+
+        ptree->root = t;
+        ptree->conf = conf;
         return NULL;
 }
 
 // See read_tree.h?destroy_tree
-void destroy_tree(FileNode *tree)
+void destroy_tree(FileTree *tree)
 {
         if(!tree)
                 return;
-        destroy_tree_(*tree);
-        free(tree);
+        destroy_tree_(tree->root);
 }
 

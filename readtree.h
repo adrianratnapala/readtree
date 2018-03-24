@@ -44,7 +44,7 @@ typedef struct {
 typedef struct {
         // Path to the root of the tree.  Can be an absolute path or realtive
         // to `cwd()` at the time read_tree() is called.
-        char *root;
+        char *root_path;
 
 
         // AcceptClosure for choosing files and directories.  The defaults
@@ -58,11 +58,15 @@ typedef struct {
         const void *accept_dir_arg, *accept_file_arg;
 } ReadTreeConf;
 
-// Read recursively tree reads a directory tree into memory as, represented as
-// a tree of FileNodes.
-extern Error *read_tree(const ReadTreeConf *pconf, FileNode **ptree);
-// Destroys the results of a call to read_tree
-extern void destroy_tree(FileNode *tree);
+typedef struct {
+        ReadTreeConf conf;
+        FileNode root;
+} FileTree;
+
+// Read recursively tree reads a directory tree into memory as a FileTree.
+extern Error *read_tree(const ReadTreeConf *pconf, FileTree *ptree);
+// Cleans up internal data structures in *tree, but does no delete it.
+extern void destroy_tree(FileTree *tree);
 
 // Internal back-end for RAD_TREE_ACCEPT_SUFFIX, do no use directly.
 extern bool read_tree_accept_all_(

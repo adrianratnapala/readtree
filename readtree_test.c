@@ -277,17 +277,28 @@ fail:
         return 0;
 }
 
-static int chk_tree_ok(FileNode *tree)
+static int chk_tree_ok(const FileTree *tree)
 {
-        CHK(tree->path);
-        CHK(tree->path - tree->full_path <= strlen(tree->full_path));
-        if(tree->content) {
-                //CHKV(tree->content[tree->size] == '\0',
-                //        "File content for %s was not nul-terminated",
-                //        tree->path);
+        FileNode root = tree->root;
+        CHK(root.path);
+        const char *root_path = tree->conf.root_path;
+        size_t root_path_len = strlen(root_path);
+
+        CHK(!strncmp(root_path, root.full_path, root_path_len));
+        if(root.full_path[root_path_len]) {
+                CHK(root.full_path[root_path_len] == '/');
+                CHK(root_path - root.full_path == root_path_len + 1);
         } else {
-                LOG_F(dbg_log, "'%s' is not a file", tree->path);
-                CHKV(tree->subv, "Node is neither a file or directory!");
+                //CHK(root_path - root.full_path == root_path_len);
+        }
+
+        if(root.content) {
+                //CHKV(root.content[tree->size] == '\0',
+                //        "File content for %s was not nul-terminated",
+                //        root.path);
+        } else {
+                LOG_F(dbg_log, "'%s' is not a file", root.path);
+                CHKV(root.subv, "Node is neither a file or directory!");
         }
 
         PASS_QUIETLY();
@@ -332,16 +343,16 @@ fail:
 
 static int chk_test_tree(TestFile *tf, const ReadTreeConf *conf)
 {
-        FileNode *tree;
+        FileTree tree;
         CHK(noerror(read_tree(conf, &tree)));
-        CHK(chk_tree_ok(tree));
+        CHK(chk_tree_ok(&tree));
 
-        CHK(tf = chk_tree_equal(conf->root, tf, tree));
+        CHK(tf = chk_tree_equal(conf->root_path, tf, &tree.root));
         for(; tf->expect_dropped; tf++) { }
         CHKV(tf->path == NULL, "Expected files/dirs missing from tree read: "
                          "%s, ...", tf->path);
 
-        destroy_tree(tree);
+        destroy_tree(&tree);
 
         PASS_QUIETLY();
 }
@@ -349,7 +360,7 @@ static int chk_test_tree(TestFile *tf, const ReadTreeConf *conf)
 static int test_read_tree_case(TestCase tc)
 {
         TestFile *tf =  tc.files;
-        const char *name = tc.conf.root;
+        const char *name = tc.conf.root_path;
         CHKV(make_test_tree(name, tf),
                 "failed to make dirtree for test case %s", name);
         CHKV(chk_test_tree(tf, &tc.conf),
@@ -438,8 +449,8 @@ static const char more_bigger_text[] =
 
 static TestCase tc_main_test_tree_ = {
         .conf = {
-                .root = "test_dir_tree",
-                //.root = "main_test_tree",
+                .root_path ="test_dir_tree",
+                //.root_path ="main_test_tree",
         },
         .files = (TestFile[]){
                 {"", NULL},
@@ -467,9 +478,9 @@ static TestCase tc_main_test_tree_ = {
 
 static TestCase tc_drop_files_without_suffix_ = {
         .conf = (ReadTreeConf){
-                .root = "test_endings_filter",
+                .root_path ="test_endings_filter",
                 .accept_file = READ_TREE_ACCEPT_SUFFIX(".kept"),
-                .root = "test_endings_filter",
+                .root_path ="test_endings_filter",
         },
         .files = (TestFile[]){
                 {"", NULL},
@@ -488,7 +499,7 @@ static TestCase tc_drop_files_without_suffix_ = {
 
 static TestCase tc_drop_dirs_without_suffix_ = {
         .conf = (ReadTreeConf){
-                .root = "test_endings.kepd",
+                .root_path ="test_endings.kepd",
                 .accept_dir = READ_TREE_ACCEPT_SUFFIX(".kepd"),
         },
         .files = (TestFile[]){
@@ -502,7 +513,7 @@ static TestCase tc_drop_dirs_without_suffix_ = {
 };
 
 static TestCase tc_bad_fifo_in_tree_ = {
-        .conf = (ReadTreeConf){ .root = "fifo_in_tree", },
+        .conf = (ReadTreeConf){ .root_path ="fifo_in_tree", },
         .files = (TestFile[]){
                 {"", NULL},
                 {"bad_fifo", .explicit_mode = true, .mode = 0666 | S_IFIFO},
@@ -511,7 +522,7 @@ static TestCase tc_bad_fifo_in_tree_ = {
 };
 
 static TestCase tc_bad_no_permission_ = {
-        .conf = (ReadTreeConf){ .root = "bad_no_permission", },
+        .conf = (ReadTreeConf){ .root_path ="bad_no_permission", },
         .files = (TestFile[]){
                 {"", NULL},
                 {"no_permssion",
@@ -521,7 +532,7 @@ static TestCase tc_bad_no_permission_ = {
 };
 
 static TestCase tc_bad_broken_link_ = {
-        .conf = (ReadTreeConf){ .root = "bad_broken_link", },
+        .conf = (ReadTreeConf){ .root_path ="bad_broken_link", },
         .files = (TestFile[]){
                 {"", NULL},
                 {"bad_broken_link", .symlink="non_existent_target"},
@@ -530,7 +541,7 @@ static TestCase tc_bad_broken_link_ = {
 };
 
 static TestCase tc_bad_cyclic_link_ = {
-        .conf = (ReadTreeConf){ .root = "bad_cyclic_link", },
+        .conf = (ReadTreeConf){ .root_path ="bad_cyclic_link", },
         .files = (TestFile[]){
                 {"", NULL},
                 {"bad_cyclic_link", .symlink="bad_cyclic_link"},
@@ -539,7 +550,7 @@ static TestCase tc_bad_cyclic_link_ = {
 };
 
 static TestCase tc_bad_root_is_file_ = {
-        .conf = (ReadTreeConf){ .root = "bad_root_is_file", },
+        .conf = (ReadTreeConf){ .root_path ="bad_root_is_file", },
         .files = (TestFile[]){
                 {"", "Having conent, I am a file, not a directory" },
                 {0},
@@ -547,27 +558,27 @@ static TestCase tc_bad_root_is_file_ = {
 };
 
 static TestCase tc_bad_root_does_not_exist_ = {
-        .conf = (ReadTreeConf){ .root = "root_does_not_exist", },
+        .conf = (ReadTreeConf){ .root_path = "root_does_not_exist", },
         .files = (TestFile[]){
                 {0},
         }
 };
 
-
+// FIX: move this
 static int test_bad_case(TestCase tc)
 {
         TestFile *tf =  tc.files;
-        const char *name = tc.conf.root;
+        const char *name = tc.conf.root_path;
         CHKV(make_test_tree(name, tf),
                 "failed to make dirtree for test case %s", name);
 
-        FileNode *tree = NULL;
+        FileTree tree;
         Error *err = NULL;
         CHKV(err = read_tree(&tc.conf, &tree),
                 "Expected error missing in test tree %s", name);
         destroy_error(err);
-        CHKV(!tree, "read_tree returned both a tree and an error");
-        destroy_tree(tree);
+        CHKV(!tree.root.subv, "read_tree returned both a tree and an error");
+        destroy_tree(&tree);
 
         PASSV("%s(%s)", __func__, name);
 }
