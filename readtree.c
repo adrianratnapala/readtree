@@ -94,7 +94,7 @@ static Error *make_stub(
         size_t nf = strlen(de_fname);
         size_t nd = strlen(full_dir_path);
         if(full_dir_path[nd-1] == '/')
-                PANIC("ReadTtee allowed an untrimmed root directory");
+                PANIC("read_tree allowed an untrimmed root directory");
 
         char *full_path = MALLOC(nf + nd + 2);
         char *name = full_path + nd + 1;
