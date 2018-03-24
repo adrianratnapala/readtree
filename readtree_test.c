@@ -277,7 +277,7 @@ fail:
         return 0;
 }
 
-static TestFile *chk_tree_equal(const char *root, TestFile *tfp, Tree *tree) {
+static TestFile *chk_tree_equal(const char *root, TestFile *tfp, FileNode *tree) {
         TestFile tf = *tfp++;
 
         if(tf.expect_dropped) {
@@ -305,8 +305,8 @@ static TestFile *chk_tree_equal(const char *root, TestFile *tfp, Tree *tree) {
                 CHK(!tree->content);
         }
 
-        Tree *sub0 = tree->sub, *subE = sub0 + tree->nsub;
-        for(Tree *src = sub0; src < subE; src++) {
+        FileNode *sub0 = tree->sub, *subE = sub0 + tree->nsub;
+        for(FileNode *src = sub0; src < subE; src++) {
                 CHK(tfp = chk_tree_equal(root, tfp, src));
         }
 
@@ -317,7 +317,7 @@ fail:
 
 static int chk_test_tree(TestFile *tf, const ReadTreeConf *conf)
 {
-        Tree *tree;
+        FileNode *tree;
         CHK(noerror(read_tree(conf, &tree)));
 
         CHK(tf = chk_tree_equal(conf->root, tf, tree));
@@ -545,7 +545,7 @@ static int test_bad_case(TestCase tc)
         CHKV(make_test_tree(name, tf),
                 "failed to make dirtree for test case %s", name);
 
-        Tree *tree = NULL;
+        FileNode *tree = NULL;
         Error *err = NULL;
         CHKV(err = read_tree(&tc.conf, &tree),
                 "Expected error missing in test tree %s", name);

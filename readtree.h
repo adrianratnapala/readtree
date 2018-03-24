@@ -3,9 +3,9 @@
 
 #include "elm0/elm.h"
 
-// ReadTree recursively reads a directory tree into an in-memory Tree (FIX:
-// rename to FileNode).
-typedef struct Tree {
+// FIX: create non-recuresive FileTree type
+// ReadTree recursively reads a directory tree into an in-memory FileNode.
+typedef struct FileNode {
         // Full path to the this node.  This can be an absolute path or it can
         // be a path relative to `cwd()` at the time ReadTree was called.
         char *full_path;
@@ -21,8 +21,8 @@ typedef struct Tree {
         // The sub-nodes node of this node.  For a file, or for an empty
         // directory .nsub = 0, .sub = NULL, but for other directories.
         unsigned nsub;
-        struct Tree *sub;
-} Tree;
+        struct FileNode *sub;
+} FileNode;
 
 
 // A closure you can define telling ReadTree whether to include a file or dir.
@@ -30,7 +30,7 @@ typedef struct Tree {
 // excluded regardless of this function.  See readtree_test.c for examples
 typedef struct {
         // ReadTree calls this for each candidate.  `arg` is user-suplied.
-        // `full_path` and `path` are the path to the node (see ?Tree).
+        // `full_path` and `path` are the path to the node (see ?FileNode).
         // FIX: remove the underscore.
         // FIX: is this really correct or is `path` just the filename part?
         bool (*fun_)(const void *arg, const char *full_path, const char *path);
@@ -59,9 +59,9 @@ typedef struct {
 
 // Read recursively tree reads a directory tree into memory as, represented as
 // a tree of FileNodes.
-extern Error *read_tree(const ReadTreeConf *pconf, Tree **ptree);
+extern Error *read_tree(const ReadTreeConf *pconf, FileNode **ptree);
 // Destroys the results of a call to read_tree
-extern void destroy_tree(Tree *tree);
+extern void destroy_tree(FileNode *tree);
 
 // Internal back-end for RAD_TREE_ACCEPT_SUFFIX, do no use directly.
 extern bool read_tree_accept_all_(

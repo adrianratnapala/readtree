@@ -119,7 +119,7 @@ static Error *make_stub(
         return NULL;
 }
 
-static Tree *read_tree_(const ReadTreeConf*, const char*, unsigned*, Error**);
+static FileNode *read_tree_(const ReadTreeConf*, const char*, unsigned*, Error**);
 
 // Reads the content of a file into a buffer you can free().
 static char *read_file_(const char *full_path, unsigned *psize, Error **perr)
@@ -194,7 +194,7 @@ error:
 static Error *from_stub_(
         const ReadTreeConf *conf,
         unsigned root_len, // precomputed strlen(conf->root)
-        Tree *pr,
+        FileNode *pr,
         const Stub_ stub)
 {
         assert(pr);
@@ -203,7 +203,7 @@ static Error *from_stub_(
                 PANIC("NULL name from scandir of %s!", stub.full_path);
 
         assert(stub.full_path[root_len] == '/');
-        Tree r = {
+        FileNode r = {
                 .full_path = stub.full_path,
                 .path = stub.full_path + root_len + 1,
         };
@@ -297,7 +297,7 @@ static Error *load_stubv_(
         errno = 0;
         DIR *dir = opendir(full_dir_path);
         if(!dir) {
-                return IO_ERROR(full_dir_path, errno, "Readtree opening dir");
+                return IO_ERROR(full_dir_path, errno, "read_tree opening dir");
         }
 
         Stub_ *stubv = NULL;
@@ -349,7 +349,7 @@ static Error *load_stubv_(
 //
 // This is in internal helper, both used by the (root-only) public interface
 // destroy_tree() and to clean up after errors in read_tree_().
-static void destroy_tree_(Tree t)
+static void destroy_tree_(FileNode t)
 {
         free(t.full_path);
         free(t.content);
@@ -359,8 +359,8 @@ static void destroy_tree_(Tree t)
         free(t.sub);
 }
 
-// Recursively read read a directory into a sorted array of Trees.
-static Tree *read_tree_(
+// Recursively read read a directory into a sorted array of FileNodes.
+static FileNode *read_tree_(
         const ReadTreeConf *conf,
         const char *full_dir_path,
         unsigned *pnsub,
@@ -377,7 +377,7 @@ static Tree *read_tree_(
         assert(stub || !n);
 
         // Recursively expand each stub.
-        struct Tree *subv = MALLOC(sizeof(Tree)*n);
+        struct FileNode *subv = MALLOC(sizeof(FileNode)*n);
         int nconverted;
         unsigned root_len = strlen(conf->root);
         for(nconverted = 0; nconverted < n; nconverted++) {
@@ -425,7 +425,7 @@ Error *fill_out_config_(ReadTreeConf *conf)
 // -- Public -----------------------------------------------------------
 
 // See read_tree.h?read_tree
-Error *read_tree(const ReadTreeConf *pconf, Tree **ptree)
+Error *read_tree(const ReadTreeConf *pconf, FileNode **ptree)
 {
         if(!ptree)
                 PANIC("'ptree' is null");
@@ -441,11 +441,11 @@ Error *read_tree(const ReadTreeConf *pconf, Tree **ptree)
         ReadTreeConf conf = *pconf;
         fill_out_config_(&conf);
 
-        // Keep a private copy of the root, owned by to (root) Tree object.
+        // Keep a private copy of the root, owned by to (root) FileNode object.
         if(!(conf.root = strdup(conf.root)))
                 PANIC_NOMEM();
 
-        Tree t = {
+        FileNode t = {
                 .full_path = conf.root,
                 .path = conf.root + strlen(conf.root),
         };
@@ -460,7 +460,7 @@ Error *read_tree(const ReadTreeConf *pconf, Tree **ptree)
                 free(conf.root);
                 return err;
         }
-        Tree *tree = malloc(sizeof(Tree));
+        FileNode *tree = malloc(sizeof(FileNode));
         if(!tree) {
                 destroy_tree_(t);
                 PANIC_NOMEM();
@@ -471,7 +471,7 @@ Error *read_tree(const ReadTreeConf *pconf, Tree **ptree)
 }
 
 // See read_tree.h?destroy_tree
-void destroy_tree(Tree *tree)
+void destroy_tree(FileNode *tree)
 {
         if(!tree)
                 return;
