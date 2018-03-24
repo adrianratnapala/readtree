@@ -22,7 +22,7 @@ $B/libelm.a:
 	BUILD_DIR=../$B make -C elm0/
 
 $B/readtree_test.o: readtree.h
-$B/readtree: readtree.h
+$B/readtree.o: readtree.h
 
 $B:
 	mkdir -p $@
