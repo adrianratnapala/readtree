@@ -22,7 +22,7 @@ typedef struct FileNode {
         // initalized) "sentry" node.  For a file directory .nsub = 0, .sub =
         // NULL.
         unsigned nsub;
-        struct FileNode *sub; // FIX: should be subv
+        struct FileNode *subv;
 } FileNode;
 
 

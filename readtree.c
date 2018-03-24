@@ -215,8 +215,8 @@ static Error *from_stub_(
 
         switch(stub.de_type) {
         case DT_DIR:
-                r.sub = read_tree_(conf, r.full_path, &r.nsub, &err);
-                assert(err || r.sub);
+                r.subv = read_tree_(conf, r.full_path, &r.nsub, &err);
+                assert(err || r.subv);
                 break;
         case DT_REG:
                 r.content = read_file_(r.full_path, &r.size, &err);
@@ -361,9 +361,9 @@ static void destroy_tree_(FileNode t)
         free(t.full_path);
         free(t.content);
         for(unsigned k = 0; k < t.nsub; k++) {
-                destroy_tree_(t.sub[k]);
+                destroy_tree_(t.subv[k]);
         }
-        free(t.sub);
+        free(t.subv);
 }
 
 // Recursively read read a directory into a sorted array of FileNodes.
@@ -463,8 +463,8 @@ Error *read_tree(const ReadTreeConf *pconf, FileNode **ptree)
         Error *err = NULL;
 
         // The top-level is always a directory, so just call read_tree_.
-        t.sub = read_tree_(&conf, conf.root, &t.nsub, &err);
-        assert(err || t.sub);
+        t.subv = read_tree_(&conf, conf.root, &t.nsub, &err);
+        assert(err || t.subv);
         if(err) {
                 free(conf.root);
                 return err;

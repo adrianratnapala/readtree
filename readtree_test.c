@@ -287,7 +287,7 @@ static int chk_tree_ok(FileNode *tree)
                 //        tree->path);
         } else {
                 LOG_F(dbg_log, "'%s' is not a file", tree->path);
-                CHKV(tree->sub, "Node is neither a file or directory!");
+                CHKV(tree->subv, "Node is neither a file or directory!");
         }
 
         PASS_QUIETLY();
@@ -320,7 +320,7 @@ static TestFile *chk_tree_equal(const char *root, TestFile *tfp, FileNode *tree)
                 CHK(!tree->content);
         }
 
-        FileNode *sub0 = tree->sub, *subE = sub0 + tree->nsub;
+        FileNode *sub0 = tree->subv, *subE = sub0 + tree->nsub;
         for(FileNode *src = sub0; src < subE; src++) {
                 CHK(tfp = chk_tree_equal(root, tfp, src));
         }
