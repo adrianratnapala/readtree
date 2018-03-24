@@ -286,7 +286,7 @@ static int qsort_stub_cmp_(const void *va, const void *vb, void *arg)
         return strcmp(name_a, name_b);
 }
 
-// Nonrecursively a directory into a sorted array of Stub_s.
+// Non-recursively a read directory into a sorted array of Stub_s.
 static Error *load_stubv_(
         const ReadTreeConf *conf,
         const char *full_dir_path,
