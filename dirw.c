@@ -301,6 +301,7 @@ static Error *next_stub_(
         if(de_type < 0) {
                 err = IO_ERROR(tde.path, errno,
                         "While getting file-type of directory entry");
+                free(tde.path);
                 goto done;
         }
         tde.de_type = de_type;
