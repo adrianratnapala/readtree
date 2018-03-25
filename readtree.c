@@ -259,7 +259,6 @@ static Error *next_stub_(
         if(de_type < 0) {
                 err = IO_ERROR(tde.full_path, errno,
                         "While getting file-type of directory entry");
-                free(tde.full_path);
                 goto done;
         }
         tde.de_type = de_type;
@@ -275,6 +274,7 @@ static Error *next_stub_(
 
 done:
         if(err) {
+                free(tde.full_path);
                 *pstub = (Stub_){0};
                 return err;
         }
@@ -284,6 +284,7 @@ done:
                 *pstub = tde;
                 return NULL;
         }
+        free(tde.full_path);
         return next_stub_(conf, pstub, full_dir_name, dir);
 }
 
