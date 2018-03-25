@@ -25,7 +25,7 @@
 #define MIN_READ_DIR 128
 
 #define LOG_ERR(...) LOG_F(err_log, __VA_ARGS__);
-#if 0
+#if 1
 #define LOG_DBG(...) LOG_F(null_log, __VA_ARGS__);
 #else
 #define LOG_DBG(...) LOG_F(dbg_log, __VA_ARGS__);
