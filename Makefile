@@ -2,11 +2,12 @@ B=b
 CFLAGS=-std=c99 -Wall -Werror -g -O0
 LDFLAGS=-L $(B)
 LDLIBS=-lelm -lreadtree
+VALGRIND=valgrind -q
 
 all: test
 
 test: $B $B/readtree_test
-	cd $B && ./readtree_test
+	cd $B && ${VALGRIND} ./readtree_test
 
 $B/readtree_test: $B/readtree_test.o $B/libreadtree.a $B/libelm.a
 
