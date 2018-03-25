@@ -3,7 +3,6 @@
 
 #include "elm0/elm.h"
 
-// FIX: create non-recuresive FileTree type
 // ReadTree recursively reads a directory tree into an in-memory FileNode.
 typedef struct FileNode {
         // Full path to the this node.  This can be an absolute path or it can
