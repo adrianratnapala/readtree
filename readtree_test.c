@@ -278,23 +278,30 @@ fail:
 }
 
 // Integrity tests for a FileTree, i.e. is it valid, not is it right.
-static int chk_tree_ok(const FileTree *tree)
+static int chk_tree_ok(const ReadTreeConf *conf, const FileNode *tree)
 {
-        FileNode root = tree->root;
-        CHK(root.path);
-        const char *root_path = tree->conf.root_path;
+        CHK(tree->path);
 
-        char *xfull_path = path_join_(root_path, root.path);
-        CHK_STR_EQ(xfull_path, root_path);
+        char *xfull_path = path_join_(conf->root_path, tree->path);
+        CHK_STR_EQ(xfull_path, tree->full_path);
         free(xfull_path);
 
-        if(root.content) {
+        if(tree->content) {
                 //CHKV(root.content[tree->size] == '\0',
                 //        "File content for %s was not nul-terminated",
                 //        root.path);
         } else {
-                LOG_F(dbg_log, "'%s' is not a file", root.path);
-                CHKV(root.subv, "Node is neither a file or directory!");
+                //LOG_F(dbg_log, "'%s' is not a file", tree->path);
+                CHKV(tree->subv, "Node is neither a file or directory!");
+
+                FileNode sentry = tree->subv[tree->nsub];
+                CHK(!sentry.path);
+                CHK(!sentry.full_path);
+                CHK(!sentry.content);
+        }
+
+        for(unsigned k = 0; k < tree->nsub; k++) {
+                CHK(chk_tree_ok(conf, tree->subv + k));
         }
 
         PASS_QUIETLY();
@@ -344,7 +351,7 @@ static int chk_test_tree(TestFile *tf, const ReadTreeConf *conf)
         FileTree tree = {.conf = *conf};
         CHK(tree.conf.root_path);
         CHK(noerror(read_tree(&tree)));
-        CHK(chk_tree_ok(&tree));
+        CHK(chk_tree_ok(&tree.conf, &tree.root));
 
         CHK(tf = chk_tree_equal(conf->root_path, tf, &tree.root));
         for(; tf->expect_dropped; tf++) { }
