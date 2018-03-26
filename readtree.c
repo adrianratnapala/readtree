@@ -247,7 +247,7 @@ static bool accept_stub_(const ReadTreeConf *conf, Stub_ stub)
         default:
                 PANIC("accept_stub() called with bad filetype %d", stub.de_type);
         }
-        return closure.fun_(closure.arg_, stub.full_path, stub.name);
+        return closure.fun(closure.arg, stub.full_path, stub.name);
 }
 
 // Iterate the dirstream `dir` to the next non-ignored object (Stub_).
@@ -423,9 +423,9 @@ static FileNode *read_tree_(
 // Modify a conf in-place to make it ready for use (expans out defaults etc).
 Error *fill_out_config_(ReadTreeConf *conf)
 {
-        if(!conf->accept_dir.fun_)
+        if(!conf->accept_dir.fun)
                 conf->accept_dir = (AcceptClosure)READ_TREE_ACCEPT_ALL();
-        if(!conf->accept_file.fun_)
+        if(!conf->accept_file.fun)
                 conf->accept_file = (AcceptClosure)READ_TREE_ACCEPT_ALL();
         return NULL;
 }
