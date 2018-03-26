@@ -30,9 +30,9 @@ typedef struct FileNode {
 // excluded regardless of this function.  See readtree_test.c for examples
 typedef struct {
         // ReadTree calls this for each candidate.  `arg` is user-suplied.
-        // `full_path` and `path` are the path to the node (see ?FileNode).
-        // FIX: is this really correct or is `path` just the filename part?
-        bool (*fun)(const void *arg, const char *full_path, const char *path);
+        // `full_path` is the full path as in ?FileNode.  `fname` is the
+        // filename part of `full_path`.
+        bool (*fun)(const void *arg, const char *full_path, const char *fname);
         // An opaque pointer as `arg` to each invocation of `fun`.
         void *arg;
 } AcceptClosure;
