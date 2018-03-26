@@ -8,8 +8,8 @@ typedef struct FileNode {
         // Full path to the this node.  This can be an absolute path or it can
         // be a path relative to `cwd()` at the time ReadTree was called.
         char *full_path;
-        // Relative path from the tree root to this node.  (FIX: test) If this
-        // node is the root, this is the empty string (not NULL).
+        // Relative path from the tree root to this node. If this node is the
+        // root, this is the empty string (not NULL).
         const char *path;
 
         // The size in bytes and the content of a file followed by a single 0

@@ -283,15 +283,10 @@ static int chk_tree_ok(const FileTree *tree)
         FileNode root = tree->root;
         CHK(root.path);
         const char *root_path = tree->conf.root_path;
-        size_t root_path_len = strlen(root_path);
 
-        CHK(!strncmp(root_path, root.full_path, root_path_len));
-        if(root.full_path[root_path_len]) {
-                CHK(root.full_path[root_path_len] == '/');
-                CHK(root_path - root.full_path == root_path_len + 1);
-        } else {
-                //CHK(root_path - root.full_path == root_path_len);
-        }
+        char *xfull_path = path_join_(root_path, root.path);
+        CHK_STR_EQ(xfull_path, root_path);
+        free(xfull_path);
 
         if(root.content) {
                 //CHKV(root.content[tree->size] == '\0',
