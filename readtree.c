@@ -433,30 +433,30 @@ Error *fill_out_config_(ReadTreeConf *conf)
 // -- Public -----------------------------------------------------------
 
 // See read_tree.h?read_tree
-// FIX: we don't need both arguments
-Error *read_tree(const ReadTreeConf *pconf, FileTree *ptree)
+Error *read_tree(FileTree *ptree)
 {
         if(!ptree)
                 PANIC("'ptree' is null");
-        if(!pconf)
-                PANIC("ReadTreeConf is NULL");
+        ReadTreeConf *pconf = &ptree->conf;
+
         if(!pconf->root_path)
-                PANIC("Configured ReadTree 'root' is null");
+                PANIC("Configured ReadTree 'root_path' is null");
         size_t root_len = strnlen(pconf->root_path, PATH_MAX + 1);
         if(root_len > PATH_MAX)
-                PANIC("Configured ReadTree 'root' is %lu bytes.  "
+                PANIC("Configured ReadTree 'root_path' is %lu bytes.  "
                              "Max length is %u", root_len, (unsigned)PATH_MAX);
 
-        ReadTreeConf conf = *pconf;
-        fill_out_config_(&conf);
+        fill_out_config_(pconf);
 
         // Keep a private copy of the root, owned by to (root) FileNode object.
-        if(!(conf.root_path = strdup(conf.root_path)))
+        char *root_path = strdup(pconf->root_path);
+        if(!root_path)
                 PANIC_NOMEM();
+        pconf->root_path = root_path;
 
         FileNode t = {
-                .full_path = conf.root_path,
-                .path = conf.root_path + strlen(conf.root_path),
+                .full_path = root_path,
+                .path = root_path + strlen(root_path),
         };
         if(!t.full_path) {
                 PANIC_NOMEM();
@@ -464,16 +464,15 @@ Error *read_tree(const ReadTreeConf *pconf, FileTree *ptree)
         Error *err = NULL;
 
         // The top-level is always a directory, so just call read_tree_.
-        t.subv = read_tree_(&conf, conf.root_path, &t.nsub, &err);
+        t.subv = read_tree_(pconf, root_path, &t.nsub, &err);
         assert(err || t.subv);
         if(err) {
-                free(conf.root_path);
+                free(root_path);
                 *ptree = (FileTree){0};
                 return err;
         }
 
         ptree->root = t;
-        ptree->conf = conf;
         return NULL;
 }
 

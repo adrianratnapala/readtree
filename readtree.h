@@ -63,7 +63,11 @@ typedef struct {
 } FileTree;
 
 // Read recursively tree reads a directory tree into memory as a FileTree.
-extern Error *read_tree(const ReadTreeConf *pconf, FileTree *ptree);
+//
+// Allocate a FileTree object and set the `.conf` field as desired.  This
+// function will mutate it, filling defaults in .conf and also reading a
+// FileTree into `.root`.
+extern Error *read_tree(FileTree *ptree);
 // Cleans up internal data structures in *tree, but does no delete it.
 extern void destroy_tree(FileTree *tree);
 

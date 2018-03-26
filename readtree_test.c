@@ -346,8 +346,9 @@ fail:
 // Calls read_tree() validates the result and compares it to test data.
 static int chk_test_tree(TestFile *tf, const ReadTreeConf *conf)
 {
-        FileTree tree;
-        CHK(noerror(read_tree(conf, &tree)));
+        FileTree tree = {.conf = *conf};
+        CHK(tree.conf.root_path);
+        CHK(noerror(read_tree(&tree)));
         CHK(chk_tree_ok(&tree));
 
         CHK(tf = chk_tree_equal(conf->root_path, tf, &tree.root));
@@ -383,9 +384,9 @@ static int test_sad_case(TestCase tc)
         CHKV(make_test_tree(name, tf),
                 "failed to make dirtree for test case %s", name);
 
-        FileTree tree;
+        FileTree tree = {.conf = tc.conf};
         Error *err = NULL;
-        CHKV(err = read_tree(&tc.conf, &tree),
+        CHKV(err = read_tree(&tree),
                 "Expected error missing in test tree %s", name);
         destroy_error(err);
         CHKV(!tree.root.subv, "read_tree returned both a tree and an error");
