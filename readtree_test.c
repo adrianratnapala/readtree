@@ -287,9 +287,9 @@ static int chk_tree_ok(const ReadTreeConf *conf, const FileNode *tree)
         free(xfull_path);
 
         if(tree->content) {
-                //CHKV(root.content[tree->size] == '\0',
-                //        "File content for %s was not nul-terminated",
-                //        root.path);
+                CHKV(tree->content[tree->size] == '\0',
+                        "File content for %s was not nul-terminated",
+                        tree->path);
         } else {
                 //LOG_F(dbg_log, "'%s' is not a file", tree->path);
                 CHKV(tree->subv, "Node is neither a file or directory!");
