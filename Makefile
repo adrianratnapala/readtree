@@ -1,4 +1,4 @@
-B=b
+B ?= b
 CFLAGS=-std=c99 -Wall -Werror -g -O0
 LDFLAGS=-L $(B)
 LDLIBS=-lelm -lreadtree
@@ -20,7 +20,7 @@ $B/%.o: %.c
 	$(CC) -c $< $(CPPFLAGS) $(CFLAGS) -o $@
 
 $B/libelm.a:
-	BUILD_DIR=../$B make -C elm0/
+	make -C elm0/ BUILD_DIR=$$(readlink -f $B)
 
 $B/readtree_test.o: readtree.h
 $B/readtree.o: readtree.h
