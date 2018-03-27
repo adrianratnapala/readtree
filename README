@@ -1,0 +1,83 @@
+libreadtree.a: A C library that reads a directory tree into memory.
+-------------------------------------------------------------------
+
+Author     : Adrian Ratnapala
+Get Source : git clone git://github.com/adrianratnapala/readtree.git
+More info  : https://github.com/adrianratnapala/readtree
+
+Copyright (C) 2018, Adrian Ratnapala, under the ISC license. See file LICENSE.
+
+
+libreadtree is a static C library which reads a directory tree into memory; you
+can define your own filters to choose which files and directories to include.
+
+To build it, invoke:
+
+    B=$ABSOLUTE_PATH_FOR_BUILD_PRODUCT make -C $PATH_TO_LIBREADTREE_SOURCE
+
+To use it, write something like:
+
+
+        #include "readtree.h"
+
+        int main(void)
+        {
+                FileTree tree = {
+                        .conf = {
+                                .root_path = "path/to/tree/root",
+                        }
+                };
+
+                // modifies `tree` in place
+                Error *err = read_tree(&tree);
+                if(err)
+                        panic(err);
+
+                // tree.root is the root is now the root of a tree of FileNode
+                // structs.  See `readtree.h` for details.
+
+
+                return 0;
+        }
+
+
+
+
+And build it with something like:
+
+    cc -std=c99 -I $PATH_TO_LIBREADTREE_SOURCE -c my_prog.c -o my_prog.o
+    cc -L $ABSOLUTE_PATH_FOR_BUILD_PRODUCT  my_prog.o -lreadtree -lelm -o my_prog
+
+
+You can define select which files and directories to include by defining your
+own accept-functions.  For example:
+
+
+           FileTree tree = {
+                   .conf = {
+                           .root_path = "path/to/tree/root",
+                           .accept_file = {
+                                   .fun = my_file_filter,
+                                   .arg = NULL, // passed to my_file_filter
+                           },
+                           .accept_dir = {
+                                   .fun = my_dir_filter,
+                                   .arg = NULL, // passed to my_dir_filter
+                           }
+                   }
+           };
+
+
+For convenience readtree.h pre-defines accept-functions that an be used with
+either files or directories.  For example; if you only want to descend into
+directories ending in ".d" you can say:
+
+                FileTree tree = {
+                        .conf = {
+                                .root_path = "path/to/tree/root",
+                                .accept_dir = READ_TREE_ACCEPT_SUFFIX(".d")
+                        }
+                };
+
+
+
