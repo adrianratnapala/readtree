@@ -1,6 +1,7 @@
 #ifndef READTREE_H
 #define READTREE_H
 
+#include <stdbool.h>
 #include "elm0/elm.h"
 
 // ReadTree recursively reads a directory tree into an in-memory FileNode.
