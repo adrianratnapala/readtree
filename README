@@ -11,6 +11,9 @@ Copyright (C) 2018, Adrian Ratnapala, under the ISC license. See file LICENSE.
 libreadtree is a static C library which reads a directory tree into memory; you
 can define your own filters to choose which files and directories to include.
 
+This is a very early version that has only been tried on linux and with the GNU
+libc.  If you try it on a different platform please send your patches!
+
 To build it, invoke:
 
     B=$ABSOLUTE_PATH_FOR_BUILD_PRODUCT make -C $PATH_TO_LIBREADTREE_SOURCE
