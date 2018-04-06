@@ -1,5 +1,5 @@
-libreadtree.a: A C library that reads a directory tree into memory.
--------------------------------------------------------------------
+libreadtree: A C library that reads a directory tree into memory.
+-----------------------------------------------------------------
 
 Author     : Adrian Ratnapala
 Get Source : git clone git://github.com/adrianratnapala/readtree.git
