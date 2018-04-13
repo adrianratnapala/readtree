@@ -42,7 +42,7 @@ typedef struct {
 typedef struct {
         // Path to the root of the tree.  Can be an absolute path or realtive
         // to `cwd()` at the time read_tree() is called.
-        char *root_path;
+        const char *root_path;
 
 
         // AcceptClosure for choosing files and directories.  The defaults
