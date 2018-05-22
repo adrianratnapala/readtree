@@ -61,16 +61,13 @@ typedef struct
         int de_type;
 } Stub_;
 
-// Determine the Stub_.de_type of an filesystem object.
+// Use stat() to get the Stub_.de_type corresponding to a deirent.
 //
-// If the dirent contains what we need, just us that, otherwise stat() the
-// underlying object and convert the result.
-static int de_type_(const char *full_path, const struct dirent *de)
+// This function always calls stat() but returns a value as if it was a dirent
+// d_type (which is also Stub_.de_type).  We only need to call this if our
+// dirent doesn't give us the info we need.
+static int de_type_from_stat_(const char *full_path)
 {
-        unsigned char de_type = de->d_type;
-        if(de_type == DT_REG || de_type == DT_DIR)
-                return de_type;
-
         struct stat st;
         if(0 >  stat(full_path, &st))
                 return -errno;
@@ -106,7 +103,10 @@ static Error *make_stub(
         full_path[nd] = '/';
         memcpy(name, de_fname, nf + 1);
 
-        int de_type = de_type_(full_path, de);
+        int de_type = de->d_type;
+        if(de_type != DT_REG && de_type != DT_DIR) {
+                de_type = de_type_from_stat_(full_path);
+        }
         if(de_type < 0) {
                 Error *err = IO_ERROR(full_path, -de_type,
                         "While getting file-type of directory entry");
