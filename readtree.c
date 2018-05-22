@@ -85,7 +85,7 @@ static int de_type_from_stat_(const char *full_path)
 }
 
 // Convert a directory + dirent into a Stub_
-static Error *make_stub(
+static Error *stub_from_de_(
         const char *full_dir_path,
         const struct dirent *de,
         Stub_ *pret)
@@ -120,6 +120,26 @@ static Error *make_stub(
                 .de_type = de_type,
         };
 
+        return NULL;
+}
+
+static Error *stub_from_path_(const char *full_path, Stub_ *pret)
+{
+        int de_type = de_type_from_stat_(full_path);
+        if(de_type < 0) {
+                return IO_ERROR(full_path, -de_type,
+                        "While getting file-type of '%s'", full_path);
+        }
+
+        char *ret_full_path = strdup(full_path);
+        if(!ret_full_path)
+                PANIC_NOMEM();
+        const char *last_slash = strrchr(ret_full_path, '/');
+        *pret = (Stub_) {
+                .full_path = ret_full_path,
+                .name = last_slash ? (last_slash+1) : full_path,
+                .de_type = de_type,
+        };
         return NULL;
 }
 
@@ -271,7 +291,7 @@ static Error *next_stub_(
         }
 
         Stub_ tde;
-        Error *err = make_stub(full_dir_path, de, &tde);
+        Error *err = stub_from_de_(full_dir_path, de, &tde);
         if(err) {
                 *pstub = (Stub_){0};
                 return err;
@@ -466,6 +486,7 @@ Error *read_tree(FileTree *ptree)
         }
         Error *err = NULL;
 
+        /*
         // The top-level is always a directory, so just call read_tree_.
         t.subv = read_tree_(pconf, root_path, &t.nsub, &err);
         assert(err || t.subv);
@@ -474,6 +495,24 @@ Error *read_tree(FileTree *ptree)
                 *ptree = (FileTree){0};
                 return err;
         }
+        */
+        Stub_ root_stub;
+        err = stub_from_path_(root_path, &root_stub);
+        if(!err)
+                err = from_stub_(pconf, root_len, &t, root_stub);
+        if(err) {
+                free(root_path);
+                *ptree = (FileTree){0};
+                return err;
+        }
+        // FIX: add this check
+        //else if(!accept_stub_(conf, &root_stub)) {
+        //        *pstub = tde;
+        //        return NULL;
+        //}
+
+
+
 
         ptree->root = t;
         return NULL;
