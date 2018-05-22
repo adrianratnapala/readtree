@@ -68,7 +68,7 @@ typedef struct
 static int de_type_(const char *full_path, const struct dirent *de)
 {
         unsigned char de_type = de->d_type;
-        if(de_type == DT_REG && de_type != DT_DIR)
+        if(de_type == DT_REG || de_type == DT_DIR)
                 return de_type;
 
         struct stat st;
