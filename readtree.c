@@ -206,11 +206,14 @@ static Error *from_stub_(
         if(!name)
                 PANIC("NULL name from scandir of %s!", stub.full_path);
 
-        assert(stub.full_path[root_len] == '/');
+        assert(stub.full_path[root_len] == '/' || !stub.full_path[root_len]);
         FileNode r = {
                 .full_path = stub.full_path,
-                .path = stub.full_path + root_len + 1,
+                .path = stub.full_path + root_len,
         };
+        while(*r.path == '/') {
+                r.path++;
+        }
         Error *err = NULL;
 
         switch(stub.de_type) {
