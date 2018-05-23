@@ -488,21 +488,17 @@ Error *read_tree(FileTree *ptree)
 
         Stub_ root_stub;
         err = stub_from_path_(root_path, &root_stub);
-        if(!err)
+        if(!err) {
                 err = from_stub_(pconf, root_len, &t, root_stub);
+        }
+        if(!err && !accept_stub_(pconf, root_stub)) {
+                err = ERROR("ReadTree root is dropped");
+        }
         if(err) {
                 free(root_path);
                 *ptree = (FileTree){0};
                 return err;
         }
-        // FIX: add this check
-        //else if(!accept_stub_(conf, &root_stub)) {
-        //        *pstub = tde;
-        //        return NULL;
-        //}
-
-
-
 
         ptree->root = t;
         return NULL;

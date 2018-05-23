@@ -576,6 +576,17 @@ static TestCase tc_happy_root_is_file_ = {
         }
 };
 
+static TestCase tc_sad_root_is_dropped_ = {
+        .conf = (ReadTreeConf){
+                .root_path ="dropped_root",
+                .accept_dir = READ_TREE_ACCEPT_SUFFIX(".kepd"),
+        },
+        .files = (TestFile[]){
+                {"",  .expect_dropped = true},
+                {0},
+        }
+};
+
 static TestCase tc_sad_root_does_not_exist_ = {
         .conf = (ReadTreeConf){ .root_path = "root_does_not_exist", },
         .files = (TestFile[]){
@@ -597,6 +608,7 @@ int main(void)
         test_sad_case(tc_sad_broken_link_);
         test_sad_case(tc_sad_fifo_in_tree_);
         test_sad_case(tc_sad_no_permission_);
+        test_sad_case(tc_sad_root_is_dropped_);
 
         return zunit_report();
 }
