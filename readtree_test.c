@@ -568,16 +568,13 @@ static TestCase tc_sad_cyclic_link_ = {
         }
 };
 
-/* FIX: put this back when the root-as-file feature is implemented, but
- * optional.
-static TestCase tc_sad_root_is_file_ = {
+static TestCase tc_happy_root_is_file_ = {
         .conf = (ReadTreeConf){ .root_path ="bad_root_is_file", },
         .files = (TestFile[]){
                 {"", "Having content, I am a file, not a directory" },
                 {0},
         }
 };
-*/
 
 static TestCase tc_sad_root_does_not_exist_ = {
         .conf = (ReadTreeConf){ .root_path = "root_does_not_exist", },
@@ -593,9 +590,9 @@ int main(void)
         test_happy_case(tc_drop_files_without_suffix_);
         test_happy_case(tc_drop_dirs_without_suffix_);
         test_happy_case(tc_drop_dirs_without_suffix_);
+        test_happy_case(tc_happy_root_is_file_);
 
         test_sad_case(tc_sad_root_does_not_exist_);
-        //test_sad_case(tc_sad_root_is_file_);
         test_sad_case(tc_sad_cyclic_link_);
         test_sad_case(tc_sad_broken_link_);
         test_sad_case(tc_sad_fifo_in_tree_);

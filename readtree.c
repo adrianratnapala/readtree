@@ -486,16 +486,6 @@ Error *read_tree(FileTree *ptree)
         }
         Error *err = NULL;
 
-        /*
-        // The top-level is always a directory, so just call read_tree_.
-        t.subv = read_tree_(pconf, root_path, &t.nsub, &err);
-        assert(err || t.subv);
-        if(err) {
-                free(root_path);
-                *ptree = (FileTree){0};
-                return err;
-        }
-        */
         Stub_ root_stub;
         err = stub_from_path_(root_path, &root_stub);
         if(!err)
