@@ -453,6 +453,27 @@ Error *fill_out_config_(ReadTreeConf *conf)
         return NULL;
 }
 
+// Trim all trailing slashes from `path`, unless it is made entirely of slashes.
+char *trimmed_path_copy(const char *path)
+{
+        size_t n = strnlen(path, PATH_MAX + 1);
+        if(n > PATH_MAX)
+                PANIC("Path is %lu bytes.  Max length is %u", n,
+                (unsigned)PATH_MAX);
+
+        for(size_t k = n; k; k--) {
+                if(path[k-1] == '/')
+                        continue;
+                n = k;
+                break;
+        }
+
+        char *dest = MALLOC(n + 1);
+        memcpy(dest, path, n);
+        dest[n] = 0;
+        return dest;
+}
+
 // -- Public -----------------------------------------------------------
 
 // See read_tree.h?read_tree
@@ -464,17 +485,13 @@ Error *read_tree(FileTree *ptree)
 
         if(!pconf->root_path)
                 PANIC("Configured ReadTree 'root_path' is null");
-        size_t root_len = strnlen(pconf->root_path, PATH_MAX + 1);
-        if(root_len > PATH_MAX)
-                PANIC("Configured ReadTree 'root_path' is %lu bytes.  "
-                             "Max length is %u", root_len, (unsigned)PATH_MAX);
 
         fill_out_config_(pconf);
-
         // Keep a private copy of the root, owned by to (root) FileNode object.
-        char *root_path = strdup(pconf->root_path);
-        if(!root_path)
-                PANIC_NOMEM();
+
+        // FIX: a file-as-root is allowed even if the incoming root-path ends in '/'.
+        char *root_path = trimmed_path_copy(pconf->root_path);
+        LOG_DBG("timmed path trimmage = %s -> %s", pconf->root_path, root_path);
         pconf->root_path = root_path;
 
         FileNode t = {
@@ -489,7 +506,7 @@ Error *read_tree(FileTree *ptree)
         Stub_ root_stub;
         err = stub_from_path_(root_path, &root_stub);
         if(!err) {
-                err = from_stub_(pconf, root_len, &t, root_stub);
+                err = from_stub_(pconf, strlen(root_path), &t, root_stub);
         }
         if(!err && !accept_stub_(pconf, root_stub)) {
                 err = ERROR("ReadTree root is dropped");

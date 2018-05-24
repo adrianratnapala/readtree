@@ -44,6 +44,44 @@ typedef const struct{
         TestFile *files;
 } TestCase;
 
+static const char *eat_slashes(const char *s)
+{
+        while(*s == '/')
+                s++;
+        return s;
+}
+
+#define CHK_PATHS_EQUIVALENT(A, B) \
+        CHKV(chk_paths_equivalent((A), (B)), \
+                "(path "#A")'%s' !~ (path "#B")'%s'", (A), (B))
+
+static int chk_paths_equivalent(const char *a, const char *b)
+{
+        // FIX: Exactly two slashes at the START of a path is special.
+        for(;;) {
+                char cha = *a, chb = *b;
+                if(!cha) {
+                        CHK('\0' == *eat_slashes(b));
+                        return 1;
+                }
+                if(!chb) {
+                        CHK('\0' == *eat_slashes(a));
+                        return 1;
+                }
+
+                CHK(cha == chb);
+                if(cha == '/') {
+                        a = eat_slashes(a);
+                        b = eat_slashes(b);
+                } else {
+                        a++;
+                        b++;
+                }
+        }
+
+        PASS_QUIETLY();
+}
+
 static Error *make_symlink_(const char *src, const char *tgt)
 {
         const int max_symlink_len = 200;
@@ -315,7 +353,7 @@ static TestFile *chk_tree_equal(const char *root, TestFile *tfp, FileNode *tree)
                         CHK(0 < asprintf(&full_path, "%s/%s", root, tf.path));
                 else
                         full_path = strdup(root);
-                CHK_STR_EQ(tree->full_path, full_path);
+                CHK(chk_paths_equivalent(tree->full_path, full_path));
                 free(full_path);
                 CHK_STR_EQ(tree->path, tf.path);
         }
@@ -569,7 +607,7 @@ static TestCase tc_sad_cyclic_link_ = {
 };
 
 static TestCase tc_happy_root_is_file_ = {
-        .conf = (ReadTreeConf){ .root_path ="bad_root_is_file", },
+        .conf = (ReadTreeConf){ .root_path ="root_is_file", },
         .files = (TestFile[]){
                 {"", "Having content, I am a file, not a directory" },
                 {0},
@@ -594,6 +632,15 @@ static TestCase tc_sad_root_does_not_exist_ = {
         }
 };
 
+static TestCase tc_happy_root_untrimmed_root_ = {
+        .conf = (ReadTreeConf){ .root_path = "root_path/", },
+        .files = (TestFile[]){
+                {"",  NULL},
+                {0},
+        }
+};
+
+
 
 int main(void)
 {
@@ -602,6 +649,7 @@ int main(void)
         test_happy_case(tc_drop_dirs_without_suffix_);
         test_happy_case(tc_drop_dirs_without_suffix_);
         test_happy_case(tc_happy_root_is_file_);
+        test_happy_case(tc_happy_root_untrimmed_root_);
 
         test_sad_case(tc_sad_root_does_not_exist_);
         test_sad_case(tc_sad_cyclic_link_);
